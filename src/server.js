@@ -4,6 +4,9 @@ import dotenv from 'dotenv';
 import swaggerUi from 'swagger-ui-express';
 import swaggerSpec from './swagger/swagger.js';
 import authRoutes from './routes/authRoutes.js';
+import roteiroRoutes from './routes/roteiroRoutes.js';
+import destinoRoutes from './routes/destinoRoutes.js';
+import passeioRoutes from './routes/passeioRoutes.js';
 import pool from './config/database.js';
 
 dotenv.config();
@@ -28,6 +31,9 @@ app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Rotas
 app.use('/auth', authRoutes);
+app.use('/roteiros', roteiroRoutes);
+app.use('/destinos', destinoRoutes);
+app.use('/passeios', passeioRoutes);
 
 // Rota inicial
 app.get('/', async (req, res) => {
