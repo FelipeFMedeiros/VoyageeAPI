@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const getServerUrl = () => {
-    const host = '192.168.1.128';
+    const host = 'localhost';
     const port = process.env.PORT || 3000;
     return `http://${host}:${port}`;
 };
