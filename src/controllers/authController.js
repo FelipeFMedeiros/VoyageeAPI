@@ -289,3 +289,235 @@ export const verifyToken = async (req, res) => {
         });
     }
 };
+
+export const getUserById = async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const requestingUser = req.user; // Usuário que fez a requisição
+
+        // Verificar se o usuário está buscando seus próprios dados ou é admin
+        if (requestingUser.id.toString() !== userId && requestingUser.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Acesso negado. Você só pode visualizar seu próprio perfil.'
+            });
+        }
+
+        // Buscar informações completas do usuário
+        const [users] = await pool.query(`
+            SELECT 
+                p.*,
+                a.role,
+                a.is_active,
+                CASE 
+                    WHEN g.id IS NOT NULL THEN 'guia'
+                    ELSE 'viajante'
+                END as tipo,
+                g.biografia,
+                g.anos_experiencia,
+                g.avaliacao_media,
+                g.numero_avaliacoes,
+                g.status_verificacao,
+                e.cep,
+                e.pais,
+                e.estado,
+                e.cidade,
+                e.bairro,
+                e.rua,
+                e.numero as endereco_numero,
+                e.complemento
+            FROM PESSOA p
+            JOIN AUTH a ON p.id = a.pessoa_id
+            LEFT JOIN GUIA g ON p.id = g.pessoa_id
+            LEFT JOIN ENDERECO e ON g.endereco_id = e.id
+            WHERE p.id = ?
+        `, [userId]);
+
+        if (users.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Usuário não encontrado'
+            });
+        }
+
+        const userData = users[0];
+
+        // Remover dados sensíveis
+        delete userData.password;
+
+        // Formatar datas
+        userData.data_nascimento = userData.data_nascimento ? 
+            new Date(userData.data_nascimento).toLocaleDateString('pt-BR') : null;
+        userData.created_at = new Date(userData.created_at).toLocaleString('pt-BR');
+        userData.updated_at = userData.updated_at ? 
+            new Date(userData.updated_at).toLocaleString('pt-BR') : null;
+
+        res.json({
+            success: true,
+            user: userData
+        });
+
+    } catch (error) {
+        console.error('Erro ao buscar usuário:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao recuperar informações do usuário'
+        });
+    }
+};
+
+export const updateUser = async (req, res) => {
+    try {
+        const requestingUser = req.user;
+        const updates = req.body;
+        
+        // Verificar se o usuário existe
+        const [userCheck] = await pool.query(
+            'SELECT p.id, p.email FROM PESSOA p WHERE p.id = ?',
+            [requestingUser.id]
+        );
+
+        if (userCheck.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Usuário não encontrado'
+            });
+        }
+
+        // Iniciar transação
+        const connection = await pool.getConnection();
+        await connection.beginTransaction();
+
+        try {
+            // Atualizar tabela PESSOA
+            if (Object.keys(updates).some(key => ['nome', 'telefone', 'data_nascimento'].includes(key))) {
+                const updateFields = [];
+                const updateValues = [];
+
+                if (updates.nome !== undefined) {
+                    updateFields.push('nome = ?');
+                    updateValues.push(updates.nome);
+                }
+                if (updates.telefone !== undefined) {
+                    updateFields.push('telefone = ?');
+                    updateValues.push(updates.telefone);
+                }
+                if (updates.data_nascimento !== undefined) {
+                    updateFields.push('data_nascimento = ?');
+                    updateValues.push(updates.data_nascimento);
+                }
+
+                if (updateFields.length > 0) {
+                    updateValues.push(requestingUser.id);
+                    await connection.query(
+                        `UPDATE PESSOA SET ${updateFields.join(', ')} WHERE id = ?`,
+                        updateValues
+                    );
+                }
+            }
+
+            // Verificar e atualizar informações de guia
+            const [guiaCheck] = await connection.query(
+                'SELECT id, endereco_id FROM GUIA WHERE pessoa_id = ?',
+                [requestingUser.id]
+            );
+
+            if (guiaCheck.length > 0 && updates.endereco) {
+                const endereco = updates.endereco;
+                const enderecoId = guiaCheck[0].endereco_id;
+
+                // Atualizar endereço
+                const enderecoFields = [];
+                const enderecoValues = [];
+
+                const enderecoUpdates = {
+                    cep: endereco.cep,
+                    pais: endereco.pais,
+                    estado: endereco.estado,
+                    cidade: endereco.cidade,
+                    bairro: endereco.bairro,
+                    rua: endereco.rua,
+                    numero: endereco.numero,
+                    complemento: endereco.complemento
+                };
+
+                Object.entries(enderecoUpdates).forEach(([key, value]) => {
+                    if (value !== undefined) {
+                        enderecoFields.push(`${key} = ?`);
+                        enderecoValues.push(value);
+                    }
+                });
+
+                if (enderecoFields.length > 0) {
+                    enderecoValues.push(enderecoId);
+                    await connection.query(
+                        `UPDATE ENDERECO SET ${enderecoFields.join(', ')} WHERE id = ?`,
+                        enderecoValues
+                    );
+                }
+
+                // Atualizar biografia do guia
+                if (updates.biografia !== undefined) {
+                    await connection.query(
+                        'UPDATE GUIA SET biografia = ? WHERE pessoa_id = ?',
+                        [updates.biografia, requestingUser.id]
+                    );
+                }
+            }
+
+            await connection.commit();
+
+            // Buscar dados atualizados
+            const [updatedUser] = await connection.query(`
+                SELECT 
+                    p.*,
+                    a.role,
+                    CASE 
+                        WHEN g.id IS NOT NULL THEN 'guia'
+                        ELSE 'viajante'
+                    END as tipo,
+                    g.biografia,
+                    g.status_verificacao,
+                    e.cep,
+                    e.pais,
+                    e.estado,
+                    e.cidade,
+                    e.bairro,
+                    e.rua,
+                    e.numero as endereco_numero,
+                    e.complemento
+                FROM PESSOA p
+                JOIN AUTH a ON p.id = a.pessoa_id
+                LEFT JOIN GUIA g ON p.id = g.pessoa_id
+                LEFT JOIN ENDERECO e ON g.endereco_id = e.id
+                WHERE p.id = ?
+            `, [requestingUser.id]);
+
+            if (updatedUser.length === 0) {
+                throw new Error('Erro ao recuperar dados atualizados');
+            }
+
+            const userData = updatedUser[0];
+            delete userData.password; // Remover dados sensíveis
+
+            res.json({
+                success: true,
+                message: 'Perfil atualizado com sucesso',
+                user: userData
+            });
+
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+
+    } catch (error) {
+        console.error('Erro ao atualizar usuário:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao atualizar informações do usuário'
+        });
+    }
+};

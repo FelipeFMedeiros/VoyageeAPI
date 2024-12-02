@@ -1,5 +1,5 @@
 import express from 'express';
-import { register, login, verifyToken, listUsers } from '../controllers/authController.js';
+import { register, login, verifyToken, listUsers, getUserById, updateUser } from '../controllers/authController.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 import adminMiddleware from '../middleware/adminMiddleware.js';
 
@@ -244,5 +244,197 @@ router.get('/verify-token', authMiddleware, verifyToken);
  *         description: Erro interno do servidor
  */
 router.get('/users', authMiddleware, adminMiddleware, listUsers);
+
+/**
+ * @swagger
+ * /auth/users/{id}:
+ *   get:
+ *     tags: [Autenticação]
+ *     summary: Busca um usuário pelo ID
+ *     description: Retorna informações detalhadas de um usuário específico. Usuários podem ver apenas seu próprio perfil, exceto admins que podem ver qualquer perfil.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID do usuário a ser buscado
+ *     responses:
+ *       200:
+ *         description: Usuário encontrado com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     nome:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     telefone:
+ *                       type: string
+ *                     data_nascimento:
+ *                       type: string
+ *                     tipo:
+ *                       type: string
+ *                       enum: [guia, viajante]
+ *                     role:
+ *                       type: string
+ *                       enum: [user, guide, admin]
+ *                     biografia:
+ *                       type: string
+ *                     anos_experiencia:
+ *                       type: integer
+ *                     avaliacao_media:
+ *                       type: number
+ *                     status_verificacao:
+ *                       type: string
+ *                     endereco:
+ *                       type: object
+ *                       properties:
+ *                         cep:
+ *                           type: string
+ *                         pais:
+ *                           type: string
+ *                         estado:
+ *                           type: string
+ *                         cidade:
+ *                           type: string
+ *                         bairro:
+ *                           type: string
+ *                         rua:
+ *                           type: string
+ *                         numero:
+ *                           type: string
+ *                         complemento:
+ *                           type: string
+ *       401:
+ *         description: Não autenticado
+ *       403:
+ *         description: Acesso negado. Você só pode visualizar seu próprio perfil.
+ *       404:
+ *         description: Usuário não encontrado
+ *       500:
+ *         description: Erro interno do servidor
+ */
+router.get('/users/:id', authMiddleware, getUserById);
+
+/**
+ * @swagger
+ * /auth/profile:
+ *   patch:
+ *     tags: [Autenticação]
+ *     summary: Atualiza informações do próprio perfil
+ *     description: Permite atualização parcial das informações do perfil do usuário autenticado.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               nome:
+ *                 type: string
+ *                 example: "João Silva"
+ *               telefone:
+ *                 type: string
+ *                 example: "11999999999"
+ *               data_nascimento:
+ *                 type: string
+ *                 format: date
+ *                 example: "1990-01-01"
+ *               biografia:
+ *                 type: string
+ *                 example: "Guia experiente em trilhas..."
+ *               endereco:
+ *                 type: object
+ *                 properties:
+ *                   cep:
+ *                     type: string
+ *                     example: "12345678"
+ *                   pais:
+ *                     type: string
+ *                     example: "Brasil"
+ *                   estado:
+ *                     type: string
+ *                     example: "SP"
+ *                   cidade:
+ *                     type: string
+ *                     example: "São Paulo"
+ *                   bairro:
+ *                     type: string
+ *                     example: "Centro"
+ *                   rua:
+ *                     type: string
+ *                     example: "Rua das Flores"
+ *                   numero:
+ *                     type: string
+ *                     example: "123"
+ *                   complemento:
+ *                     type: string
+ *                     example: "Apto 45"
+ *     responses:
+ *       200:
+ *         description: Perfil atualizado com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Perfil atualizado com sucesso"
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                       example: 1
+ *                     nome:
+ *                       type: string
+ *                       example: "João Silva"
+ *                     email:
+ *                       type: string
+ *                       example: "joao@email.com"
+ *                     telefone:
+ *                       type: string
+ *                       example: "11999999999"
+ *                     data_nascimento:
+ *                       type: string
+ *                       example: "1990-01-01"
+ *                     tipo:
+ *                       type: string
+ *                       enum: [guia, viajante]
+ *                     role:
+ *                       type: string
+ *                       enum: [user, guide]
+ *                     biografia:
+ *                       type: string
+ *                       example: "Guia experiente em trilhas..."
+ *                     endereco:
+ *                       $ref: '#/components/schemas/Endereco'
+ *       401:
+ *         description: Não autenticado
+ *       404:
+ *         description: Usuário não encontrado
+ *       500:
+ *         description: Erro interno do servidor
+ */
+router.patch('/profile', authMiddleware, updateUser);
 
 export default router;
