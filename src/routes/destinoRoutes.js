@@ -66,7 +66,7 @@ const router = express.Router();
  *       403:
  *         description: Acesso negado
  */
-router.post('/', authMiddleware, adminMiddleware, createDestino);
+router.post('/', authMiddleware, createDestino);
 
 /**
  * @swagger
@@ -181,7 +181,7 @@ router.get('/', listDestinos);
  *         description: Destino não encontrado
  */
 router.get('/:id', getDestinoById);
-router.patch('/:id', authMiddleware, adminMiddleware, updateDestino);
+router.patch('/:id', authMiddleware, updateDestino);
 router.delete('/:id', authMiddleware, adminMiddleware, deleteDestino);
 
 export default router;

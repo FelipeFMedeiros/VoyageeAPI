@@ -23,7 +23,7 @@ const router = express.Router();
  *   post:
  *     tags: [Passeios]
  *     summary: Cria um novo passeio
- *     description: Cria um novo passeio turístico (requer ser guia ou admin)
+ *     description: Cria um novo passeio turístico (requer autenticação)
  *     security:
  *       - bearerAuth: []
  *     requestBody:

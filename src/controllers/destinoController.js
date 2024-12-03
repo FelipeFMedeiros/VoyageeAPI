@@ -2,58 +2,60 @@ import pool from '../config/database.js';
 
 export const createDestino = async (req, res) => {
     try {
-        const { 
-            nome, 
-            estado, 
-            cidade, 
-            descricao, 
-            latitude, 
-            longitude 
-        } = req.body;
+        const { nome, estado, cidade, descricao, latitude, longitude } =
+            req.body;
+        const user_id = req.user.id;
 
         // Validar estado (UF)
         if (estado.length !== 2) {
             return res.status(400).json({
                 success: false,
-                message: 'O estado deve ser uma UF válida com 2 caracteres'
+                message: 'O estado deve ser uma UF válida com 2 caracteres',
             });
         }
 
         // Verificar se o destino já existe
         const [existingDestinos] = await pool.query(
             'SELECT id FROM DESTINO WHERE nome = ? AND cidade = ? AND estado = ?',
-            [nome, cidade, estado]
+            [nome, cidade, estado],
         );
 
         if (existingDestinos.length > 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Já existe um destino com este nome nesta cidade'
+                message: 'Já existe um destino com este nome nesta cidade',
             });
         }
 
         const [result] = await pool.query(
-            `INSERT INTO DESTINO (nome, estado, cidade, descricao, latitude, longitude)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [nome, estado.toUpperCase(), cidade, descricao, latitude, longitude]
+            `INSERT INTO DESTINO (nome, estado, cidade, descricao, latitude, longitude, user_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [
+                nome,
+                estado.toUpperCase(),
+                cidade,
+                descricao,
+                latitude,
+                longitude,
+                user_id,
+            ],
         );
 
         const [destino] = await pool.query(
             'SELECT * FROM DESTINO WHERE id = ?',
-            [result.insertId]
+            [result.insertId],
         );
 
         res.status(201).json({
             success: true,
             message: 'Destino criado com sucesso',
-            destino: destino[0]
+            destino: destino[0],
         });
-
     } catch (error) {
         console.error('Erro ao criar destino:', error);
         res.status(500).json({
             success: false,
-            message: 'Erro ao criar destino'
+            message: 'Erro ao criar destino',
         });
     }
 };
@@ -61,7 +63,7 @@ export const createDestino = async (req, res) => {
 export const listDestinos = async (req, res) => {
     try {
         const { estado, cidade } = req.query;
-        
+
         let query = 'SELECT * FROM DESTINO WHERE 1=1';
         const queryParams = [];
 
@@ -81,14 +83,13 @@ export const listDestinos = async (req, res) => {
 
         res.json({
             success: true,
-            destinos
+            destinos,
         });
-
     } catch (error) {
         console.error('Erro ao listar destinos:', error);
         res.status(500).json({
             success: false,
-            message: 'Erro ao listar destinos'
+            message: 'Erro ao listar destinos',
         });
     }
 };
@@ -99,26 +100,25 @@ export const getDestinoById = async (req, res) => {
 
         const [destinos] = await pool.query(
             'SELECT * FROM DESTINO WHERE id = ?',
-            [id]
+            [id],
         );
 
         if (destinos.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: 'Destino não encontrado'
+                message: 'Destino não encontrado',
             });
         }
 
         res.json({
             success: true,
-            destino: destinos[0]
+            destino: destinos[0],
         });
-
     } catch (error) {
         console.error('Erro ao buscar destino:', error);
         res.status(500).json({
             success: false,
-            message: 'Erro ao buscar destino'
+            message: 'Erro ao buscar destino',
         });
     }
 };
@@ -127,17 +127,27 @@ export const updateDestino = async (req, res) => {
     try {
         const { id } = req.params;
         const updates = req.body;
+        const user_id = req.user.id;
+        const isAdmin = req.user.role === 'admin';
 
         // Verificar se o destino existe
         const [destinos] = await pool.query(
-            'SELECT id FROM DESTINO WHERE id = ?',
-            [id]
+            'SELECT id, user_id FROM DESTINO WHERE id = ?',
+            [id],
         );
 
         if (destinos.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: 'Destino não encontrado'
+                message: 'Destino não encontrado',
+            });
+        }
+
+        // Verificar se o usuário tem permissão para editar
+        if (!isAdmin && destinos[0].user_id !== user_id) {
+            return res.status(403).json({
+                success: false,
+                message: 'Você não tem permissão para editar este destino',
             });
         }
 
@@ -145,7 +155,7 @@ export const updateDestino = async (req, res) => {
         if (updates.estado && updates.estado.length !== 2) {
             return res.status(400).json({
                 success: false,
-                message: 'O estado deve ser uma UF válida com 2 caracteres'
+                message: 'O estado deve ser uma UF válida com 2 caracteres',
             });
         }
 
@@ -158,7 +168,7 @@ export const updateDestino = async (req, res) => {
             cidade: updates.cidade,
             descricao: updates.descricao,
             latitude: updates.latitude,
-            longitude: updates.longitude
+            longitude: updates.longitude,
         }).forEach(([key, value]) => {
             if (value !== undefined) {
                 updateFields.push(`${key} = ?`);
@@ -170,27 +180,26 @@ export const updateDestino = async (req, res) => {
             updateValues.push(id);
             await pool.query(
                 `UPDATE DESTINO SET ${updateFields.join(', ')} WHERE id = ?`,
-                updateValues
+                updateValues,
             );
         }
 
         // Buscar destino atualizado
         const [destinoAtualizado] = await pool.query(
             'SELECT * FROM DESTINO WHERE id = ?',
-            [id]
+            [id],
         );
 
         res.json({
             success: true,
             message: 'Destino atualizado com sucesso',
-            destino: destinoAtualizado[0]
+            destino: destinoAtualizado[0],
         });
-
     } catch (error) {
         console.error('Erro ao atualizar destino:', error);
         res.status(500).json({
             success: false,
-            message: 'Erro ao atualizar destino'
+            message: 'Erro ao atualizar destino',
         });
     }
 };
@@ -202,26 +211,27 @@ export const deleteDestino = async (req, res) => {
         // Verificar se o destino existe
         const [destinos] = await pool.query(
             'SELECT id FROM DESTINO WHERE id = ?',
-            [id]
+            [id],
         );
 
         if (destinos.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: 'Destino não encontrado'
+                message: 'Destino não encontrado',
             });
         }
 
         // Verificar se existem passeios vinculados
         const [passeios] = await pool.query(
             'SELECT id FROM PASSEIO WHERE destino_id = ?',
-            [id]
+            [id],
         );
 
         if (passeios.length > 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Não é possível excluir o destino pois existem passeios vinculados'
+                message:
+                    'Não é possível excluir o destino pois existem passeios vinculados',
             });
         }
 
@@ -229,14 +239,13 @@ export const deleteDestino = async (req, res) => {
 
         res.json({
             success: true,
-            message: 'Destino removido com sucesso'
+            message: 'Destino removido com sucesso',
         });
-
     } catch (error) {
         console.error('Erro ao deletar destino:', error);
         res.status(500).json({
             success: false,
-            message: 'Erro ao deletar destino'
+            message: 'Erro ao deletar destino',
         });
     }
 };
