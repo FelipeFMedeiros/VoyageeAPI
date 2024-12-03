@@ -4,7 +4,7 @@ import pool from '../config/database.js';
 
 export const register = async (req, res) => {
     try {
-        const { 
+        const {
             userType,
             name: nome,
             email,
@@ -20,19 +20,19 @@ export const register = async (req, res) => {
             number: numero,
             complement: complemento,
             bairro,
-            biografia
+            biografia,
         } = req.body;
 
         // Verificar se o usuário já existe
         const [existingUsers] = await pool.query(
             'SELECT * FROM PESSOA WHERE email = ? OR cpf = ?',
-            [email, cpf]
+            [email, cpf],
         );
 
         if (existingUsers.length > 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Email ou CPF já cadastrado.'
+                message: 'Email ou CPF já cadastrado.',
             });
         }
 
@@ -47,7 +47,7 @@ export const register = async (req, res) => {
             // Inserir pessoa
             const [personResult] = await connection.query(
                 'INSERT INTO PESSOA (nome, cpf, email, telefone, data_nascimento) VALUES (?, ?, ?, ?, ?)',
-                [nome, cpf, email, telefone, dataNascimento]
+                [nome, cpf, email, telefone, dataNascimento],
             );
 
             // Definir role do usuário
@@ -65,19 +65,33 @@ export const register = async (req, res) => {
             // Inserir autenticação
             await connection.query(
                 'INSERT INTO AUTH (pessoa_id, password, role) VALUES (?, ?, ?)',
-                [personResult.insertId, hashedPassword, role]
+                [personResult.insertId, hashedPassword, role],
             );
 
             // Se for guia, inserir endereço e registro de guia
             if (userType === 'guia') {
                 const [addressResult] = await connection.query(
                     'INSERT INTO ENDERECO (cep, pais, estado, cidade, bairro, rua, numero, complemento) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                    [cep, pais, estado, cidade, bairro, rua, numero, complemento]
+                    [
+                        cep,
+                        pais,
+                        estado,
+                        cidade,
+                        bairro,
+                        rua,
+                        numero,
+                        complemento,
+                    ],
                 );
 
                 await connection.query(
                     'INSERT INTO GUIA (pessoa_id, endereco_id, biografia, status_verificacao) VALUES (?, ?, ?, ?)',
-                    [personResult.insertId, addressResult.insertId, biografia || null, 'pendente']
+                    [
+                        personResult.insertId,
+                        addressResult.insertId,
+                        biografia || null,
+                        'pendente',
+                    ],
                 );
             }
 
@@ -85,14 +99,14 @@ export const register = async (req, res) => {
 
             res.status(201).json({
                 success: true,
-                message: 'Usuário registrado com sucesso'
+                message: 'Usuário registrado com sucesso',
             });
         } catch (error) {
             await connection.rollback();
             if (error.message === 'Não autorizado a criar usuário admin') {
                 return res.status(403).json({
                     success: false,
-                    message: error.message
+                    message: error.message,
                 });
             }
             throw error;
@@ -103,7 +117,7 @@ export const register = async (req, res) => {
         console.error('Erro no registro:', error);
         res.status(500).json({
             success: false,
-            message: 'Erro ao registrar usuário'
+            message: 'Erro ao registrar usuário',
         });
     }
 };
@@ -127,13 +141,13 @@ export const login = async (req, res) => {
             JOIN AUTH a ON p.id = a.pessoa_id 
             LEFT JOIN GUIA g ON p.id = g.pessoa_id
             WHERE p.email = ?`,
-            [email]
+            [email],
         );
 
         if (users.length === 0) {
             return res.status(401).json({
                 success: false,
-                message: 'Email ou senha incorretos'
+                message: 'Email ou senha incorretos',
             });
         }
 
@@ -143,7 +157,7 @@ export const login = async (req, res) => {
         if (!user.is_active) {
             return res.status(401).json({
                 success: false,
-                message: 'Conta desativada. Entre em contato com o suporte.'
+                message: 'Conta desativada. Entre em contato com o suporte.',
             });
         }
 
@@ -152,14 +166,14 @@ export const login = async (req, res) => {
         if (!validPassword) {
             return res.status(401).json({
                 success: false,
-                message: 'Email ou senha incorretos'
+                message: 'Email ou senha incorretos',
             });
         }
 
         // Atualizar último login
         await pool.query(
             'UPDATE AUTH SET last_login = CURRENT_TIMESTAMP WHERE pessoa_id = ?',
-            [user.id]
+            [user.id],
         );
 
         // Gerar token JWT
@@ -168,10 +182,10 @@ export const login = async (req, res) => {
                 userId: user.id,
                 email: user.email,
                 role: user.role,
-                tipo: user.tipo
+                tipo: user.tipo,
             },
             process.env.JWT_SECRET,
-            { expiresIn: '24h' }
+            { expiresIn: '24h' },
         );
 
         // Remover dados sensíveis
@@ -181,13 +195,13 @@ export const login = async (req, res) => {
         res.json({
             success: true,
             token,
-            user
+            user,
         });
     } catch (error) {
         console.error('Erro no login:', error);
         res.status(500).json({
             success: false,
-            message: 'Erro ao realizar login'
+            message: 'Erro ao realizar login',
         });
     }
 };
@@ -198,7 +212,8 @@ export const listUsers = async (req, res) => {
         if (req.user.role !== 'admin') {
             return res.status(403).json({
                 success: false,
-                message: 'Acesso negado. Apenas administradores podem listar usuários.'
+                message:
+                    'Acesso negado. Apenas administradores podem listar usuários.',
             });
         }
 
@@ -225,22 +240,26 @@ export const listUsers = async (req, res) => {
         `);
 
         // Formatar datas para o padrão brasileiro
-        const formattedUsers = users.map(user => ({
+        const formattedUsers = users.map((user) => ({
             ...user,
-            data_nascimento: user.data_nascimento ? new Date(user.data_nascimento).toLocaleDateString('pt-BR') : null,
+            data_nascimento: user.data_nascimento
+                ? new Date(user.data_nascimento).toLocaleDateString('pt-BR')
+                : null,
             created_at: new Date(user.created_at).toLocaleString('pt-BR'),
-            last_login: user.last_login ? new Date(user.last_login).toLocaleString('pt-BR') : null
+            last_login: user.last_login
+                ? new Date(user.last_login).toLocaleString('pt-BR')
+                : null,
         }));
 
         res.json({
             success: true,
-            users: formattedUsers
+            users: formattedUsers,
         });
     } catch (error) {
         console.error('Erro ao listar usuários:', error);
         res.status(500).json({
             success: false,
-            message: 'Erro ao recuperar lista de usuários'
+            message: 'Erro ao recuperar lista de usuários',
         });
     }
 };
@@ -248,9 +267,10 @@ export const listUsers = async (req, res) => {
 export const verifyToken = async (req, res) => {
     try {
         const user = req.user;
-        
+
         // Buscar informações atualizadas do usuário
-        const [users] = await pool.query(`
+        const [users] = await pool.query(
+            `
             SELECT 
                 p.*,
                 a.role,
@@ -263,12 +283,14 @@ export const verifyToken = async (req, res) => {
             JOIN AUTH a ON p.id = a.pessoa_id
             LEFT JOIN GUIA g ON p.id = g.pessoa_id
             WHERE p.id = ?
-        `, [user.id]);
+        `,
+            [user.id],
+        );
 
         if (users.length === 0) {
             return res.status(401).json({
                 success: false,
-                message: 'Usuário não encontrado'
+                message: 'Usuário não encontrado',
             });
         }
 
@@ -279,13 +301,13 @@ export const verifyToken = async (req, res) => {
 
         res.json({
             success: true,
-            user: userData
+            user: userData,
         });
     } catch (error) {
         console.error('Erro ao verificar token:', error);
         res.status(401).json({
             success: false,
-            message: 'Token inválido ou expirado'
+            message: 'Token inválido ou expirado',
         });
     }
 };
@@ -293,9 +315,8 @@ export const verifyToken = async (req, res) => {
 export const getUserById = async (req, res) => {
     try {
         const userId = req.params.id;
-        const requestingUser = req.user; // Usuário que fez a requisição
+        const requestingUser = req.user;
 
-        // Verificar se o usuário está buscando seus próprios dados ou é admin
         if (requestingUser.id.toString() !== userId && requestingUser.role !== 'admin') {
             return res.status(403).json({
                 success: false,
@@ -303,17 +324,16 @@ export const getUserById = async (req, res) => {
             });
         }
 
-        // Buscar informações completas do usuário
+        // Query atualizada removendo biografia da tabela GUIA
         const [users] = await pool.query(`
             SELECT 
-                p.*,
+                p.*,   -- Agora inclui a biografia da tabela PESSOA
                 a.role,
                 a.is_active,
                 CASE 
                     WHEN g.id IS NOT NULL THEN 'guia'
                     ELSE 'viajante'
                 END as tipo,
-                g.biografia,
                 g.anos_experiencia,
                 g.avaliacao_media,
                 g.numero_avaliacoes,
@@ -341,22 +361,21 @@ export const getUserById = async (req, res) => {
         }
 
         const userData = users[0];
-
-        // Remover dados sensíveis
         delete userData.password;
 
         // Formatar datas
-        userData.data_nascimento = userData.data_nascimento ? 
-            new Date(userData.data_nascimento).toLocaleDateString('pt-BR') : null;
+        userData.data_nascimento = userData.data_nascimento
+            ? new Date(userData.data_nascimento).toLocaleDateString('pt-BR')
+            : null;
         userData.created_at = new Date(userData.created_at).toLocaleString('pt-BR');
-        userData.updated_at = userData.updated_at ? 
-            new Date(userData.updated_at).toLocaleString('pt-BR') : null;
+        userData.updated_at = userData.updated_at
+            ? new Date(userData.updated_at).toLocaleString('pt-BR')
+            : null;
 
         res.json({
             success: true,
             user: userData
         });
-
     } catch (error) {
         console.error('Erro ao buscar usuário:', error);
         res.status(500).json({
@@ -370,17 +389,17 @@ export const updateUser = async (req, res) => {
     try {
         const requestingUser = req.user;
         const updates = req.body;
-        
+
         // Verificar se o usuário existe
         const [userCheck] = await pool.query(
             'SELECT p.id, p.email FROM PESSOA p WHERE p.id = ?',
-            [requestingUser.id]
+            [requestingUser.id],
         );
 
         if (userCheck.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: 'Usuário não encontrado'
+                message: 'Usuário não encontrado',
             });
         }
 
@@ -390,7 +409,16 @@ export const updateUser = async (req, res) => {
 
         try {
             // Atualizar tabela PESSOA
-            if (Object.keys(updates).some(key => ['nome', 'telefone', 'data_nascimento'].includes(key))) {
+            if (
+                Object.keys(updates).some((key) =>
+                    [
+                        'nome',
+                        'telefone',
+                        'data_nascimento',
+                        'biografia',
+                    ].includes(key),
+                )
+            ) {
                 const updateFields = [];
                 const updateValues = [];
 
@@ -406,12 +434,18 @@ export const updateUser = async (req, res) => {
                     updateFields.push('data_nascimento = ?');
                     updateValues.push(updates.data_nascimento);
                 }
+                if (updates.biografia !== undefined) {
+                    updateFields.push('biografia = ?');
+                    updateValues.push(updates.biografia);
+                }
 
                 if (updateFields.length > 0) {
                     updateValues.push(requestingUser.id);
                     await connection.query(
-                        `UPDATE PESSOA SET ${updateFields.join(', ')} WHERE id = ?`,
-                        updateValues
+                        `UPDATE PESSOA SET ${updateFields.join(
+                            ', ',
+                        )} WHERE id = ?`,
+                        updateValues,
                     );
                 }
             }
@@ -419,105 +453,110 @@ export const updateUser = async (req, res) => {
             // Verificar e atualizar informações de guia
             const [guiaCheck] = await connection.query(
                 'SELECT id, endereco_id FROM GUIA WHERE pessoa_id = ?',
-                [requestingUser.id]
+                [requestingUser.id],
             );
 
-            if (guiaCheck.length > 0 && updates.endereco) {
-                const endereco = updates.endereco;
-                const enderecoId = guiaCheck[0].endereco_id;
-
-                // Atualizar endereço
-                const enderecoFields = [];
-                const enderecoValues = [];
-
-                const enderecoUpdates = {
-                    cep: endereco.cep,
-                    pais: endereco.pais,
-                    estado: endereco.estado,
-                    cidade: endereco.cidade,
-                    bairro: endereco.bairro,
-                    rua: endereco.rua,
-                    numero: endereco.numero,
-                    complemento: endereco.complemento
-                };
-
-                Object.entries(enderecoUpdates).forEach(([key, value]) => {
-                    if (value !== undefined) {
-                        enderecoFields.push(`${key} = ?`);
-                        enderecoValues.push(value);
-                    }
-                });
-
-                if (enderecoFields.length > 0) {
-                    enderecoValues.push(enderecoId);
-                    await connection.query(
-                        `UPDATE ENDERECO SET ${enderecoFields.join(', ')} WHERE id = ?`,
-                        enderecoValues
-                    );
-                }
-
-                // Atualizar biografia do guia
+            // Se for guia, atualizar biografia e endereço
+            if (guiaCheck.length > 0) {
+                // Atualizar biografia se fornecida
                 if (updates.biografia !== undefined) {
                     await connection.query(
                         'UPDATE GUIA SET biografia = ? WHERE pessoa_id = ?',
-                        [updates.biografia, requestingUser.id]
+                        [updates.biografia, requestingUser.id],
                     );
+                }
+
+                // Atualizar endereço se fornecido
+                if (updates.endereco) {
+                    const endereco = updates.endereco;
+                    const enderecoId = guiaCheck[0].endereco_id;
+
+                    const enderecoFields = [];
+                    const enderecoValues = [];
+
+                    const enderecoUpdates = {
+                        cep: endereco.cep,
+                        pais: endereco.pais,
+                        estado: endereco.estado,
+                        cidade: endereco.cidade,
+                        bairro: endereco.bairro,
+                        rua: endereco.rua,
+                        numero: endereco.numero,
+                        complemento: endereco.complemento,
+                    };
+
+                    Object.entries(enderecoUpdates).forEach(([key, value]) => {
+                        if (value !== undefined) {
+                            enderecoFields.push(`${key} = ?`);
+                            enderecoValues.push(value);
+                        }
+                    });
+
+                    if (enderecoFields.length > 0) {
+                        enderecoValues.push(enderecoId);
+                        await connection.query(
+                            `UPDATE ENDERECO SET ${enderecoFields.join(
+                                ', ',
+                            )} WHERE id = ?`,
+                            enderecoValues,
+                        );
+                    }
                 }
             }
 
             await connection.commit();
 
             // Buscar dados atualizados
-            const [updatedUser] = await connection.query(`
-                SELECT 
-                    p.*,
-                    a.role,
-                    CASE 
-                        WHEN g.id IS NOT NULL THEN 'guia'
-                        ELSE 'viajante'
-                    END as tipo,
-                    g.biografia,
-                    g.status_verificacao,
-                    e.cep,
-                    e.pais,
-                    e.estado,
-                    e.cidade,
-                    e.bairro,
-                    e.rua,
-                    e.numero as endereco_numero,
-                    e.complemento
-                FROM PESSOA p
-                JOIN AUTH a ON p.id = a.pessoa_id
-                LEFT JOIN GUIA g ON p.id = g.pessoa_id
-                LEFT JOIN ENDERECO e ON g.endereco_id = e.id
-                WHERE p.id = ?
-            `, [requestingUser.id]);
+            const [updatedUser] = await connection.query(
+                `
+    SELECT 
+        p.*,
+        a.role,
+        CASE 
+            WHEN g.id IS NOT NULL THEN 'guia'
+            ELSE 'viajante'
+        END as tipo,
+        g.status_verificacao,
+        e.cep,
+        e.pais,
+        e.estado,
+        e.cidade,
+        e.bairro,
+        e.rua,
+        e.numero as endereco_numero,
+        e.complemento
+    FROM PESSOA p
+    JOIN AUTH a ON p.id = a.pessoa_id
+    LEFT JOIN GUIA g ON p.id = g.pessoa_id
+    LEFT JOIN ENDERECO e ON g.endereco_id = e.id
+    WHERE p.id = ?
+`,
+                [requestingUser.id],
+            );
 
             if (updatedUser.length === 0) {
                 throw new Error('Erro ao recuperar dados atualizados');
             }
 
             const userData = updatedUser[0];
-            delete userData.password; // Remover dados sensíveis
+            delete userData.password;
 
             res.json({
                 success: true,
                 message: 'Perfil atualizado com sucesso',
-                user: userData
+                user: userData,
             });
-
         } catch (error) {
             await connection.rollback();
             throw error;
         } finally {
             connection.release();
         }
-
     } catch (error) {
         console.error('Erro ao atualizar usuário:', error);
         res.status(500).json({
             success: false,
-            message: 'Erro ao atualizar informações do usuário'
+            message: 'Erro ao atualizar informações do usuário',
         });
     }
 };
