@@ -33,8 +33,8 @@ export const createPasseio = async (req, res) => {
             `INSERT INTO PASSEIO (
                 nome, descricao, preco, destino_id, pessoa_id,
                 duracao_horas, nivel_dificuldade, inclui_refeicao,
-                inclui_transporte, capacidade_maxima
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                inclui_transporte, capacidade_maxima, guia_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
             [nome, descricao, preco, destino_id, pessoa_id,
              duracao_horas, nivel_dificuldade, inclui_refeicao,
              inclui_transporte, capacidade_maxima]
@@ -72,7 +72,7 @@ export const createPasseio = async (req, res) => {
 
 export const listPasseios = async (req, res) => {
     try {
-        const { destino_id, guia_id, nivel_dificuldade, preco_min, preco_max } = req.query;
+        const { destino_id, criador_id, nivel_dificuldade, preco_min, preco_max } = req.query;
 
         let query = `
             SELECT 
@@ -80,12 +80,17 @@ export const listPasseios = async (req, res) => {
                 d.nome as destino_nome,
                 d.cidade,
                 d.estado,
-                ps.nome as guia_nome,
-                ps.email as guia_email
+                pc.nome as criador_nome,
+                pc.email as criador_email,
+                pc.id as criador_id,
+                CASE 
+                    WHEN g.id IS NOT NULL THEN true 
+                    ELSE false 
+                END as criador_eh_guia
             FROM PASSEIO p
             JOIN DESTINO d ON p.destino_id = d.id
-            JOIN GUIA g ON p.guia_id = g.id
-            JOIN PESSOA ps ON g.pessoa_id = ps.id
+            JOIN PESSOA pc ON p.pessoa_id = pc.id
+            LEFT JOIN GUIA g ON pc.id = g.pessoa_id
             WHERE 1=1
         `;
         const queryParams = [];
@@ -95,9 +100,9 @@ export const listPasseios = async (req, res) => {
             queryParams.push(destino_id);
         }
 
-        if (guia_id) {
-            query += ' AND p.guia_id = ?';
-            queryParams.push(guia_id);
+        if (criador_id) {
+            query += ' AND p.pessoa_id = ?';
+            queryParams.push(criador_id);
         }
 
         if (nivel_dificuldade) {
@@ -143,12 +148,17 @@ export const getPasseioById = async (req, res) => {
                 d.estado,
                 d.latitude,
                 d.longitude,
-                ps.nome as guia_nome,
-                ps.email as guia_email
+                pc.nome as criador_nome,
+                pc.email as criador_email,
+                g.id as guia_id,
+                CASE 
+                    WHEN g.id IS NOT NULL THEN true 
+                    ELSE false 
+                END as criador_eh_guia
             FROM PASSEIO p
             JOIN DESTINO d ON p.destino_id = d.id
-            JOIN GUIA g ON p.guia_id = g.id
-            JOIN PESSOA ps ON g.pessoa_id = ps.id
+            JOIN PESSOA pc ON p.pessoa_id = pc.id
+            LEFT JOIN GUIA g ON pc.id = g.pessoa_id
             WHERE p.id = ?
         `, [id]);
 

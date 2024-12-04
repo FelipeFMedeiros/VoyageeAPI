@@ -94,10 +94,10 @@ router.post('/', authMiddleware, createPasseio);
  *           type: integer
  *         description: Filtrar por destino
  *       - in: query
- *         name: guia_id
+ *         name: criador_id
  *         schema:
  *           type: integer
- *         description: Filtrar por guia
+ *         description: Filtrar por criador do passeio
  *       - in: query
  *         name: nivel_dificuldade
  *         schema:
@@ -117,7 +117,19 @@ router.post('/', authMiddleware, createPasseio);
  *     responses:
  *       200:
  *         description: Lista de passeios recuperada com sucesso
- */
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 passeios:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/PasseioCompleto'
+ */ 
 router.get('/', listPasseios);
 
 /**

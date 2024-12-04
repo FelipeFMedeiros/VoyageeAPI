@@ -2,8 +2,7 @@ import pool from '../config/database.js';
 
 export const createDestino = async (req, res) => {
     try {
-        const { nome, estado, cidade, descricao, latitude, longitude } =
-            req.body;
+        const { nome, estado, cidade, descricao, latitude, longitude } = req.body;
         const user_id = req.user.id;
 
         // Validar estado (UF)
@@ -27,16 +26,17 @@ export const createDestino = async (req, res) => {
             });
         }
 
+        // Inserir destino com latitude e longitude opcionais
         const [result] = await pool.query(
             `INSERT INTO DESTINO (nome, estado, cidade, descricao, latitude, longitude, user_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, NULLIF(?, ''), NULLIF(?, ''), ?)`,
             [
                 nome,
                 estado.toUpperCase(),
                 cidade,
                 descricao,
-                latitude,
-                longitude,
+                latitude || null,
+                longitude || null,
                 user_id,
             ],
         );
