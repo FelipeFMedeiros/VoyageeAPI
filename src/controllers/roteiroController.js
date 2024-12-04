@@ -110,82 +110,120 @@ export const createRoteiro = async (req, res) => {
 
 export const listRoteiros = async (req, res) => {
     try {
-        const { status, data, destino, criadorId } = req.query;
+        const { 
+            status, 
+            data, 
+            destino, 
+            criadorId,
+            page = 1,
+            limit = 10 
+        } = req.query;
+        
+        const offset = (parseInt(page) - 1) * parseInt(limit);
 
-        let query = `
-        SELECT 
-            r.*,
-            p.nome as passeio_nome,
-            p.descricao as passeio_descricao,
-            p.preco,
-            p.duracao_horas,
-            p.nivel_dificuldade,
-            p.inclui_refeicao,
-            p.inclui_transporte,
-            p.pessoa_id as passeio_criador_id,
-            d.nome as destino_nome,
-            d.cidade,
-            d.estado,
-            pc.id as criador_id,
-            pc.nome as criador_nome,
-            pc.email as criador_email,
-            pc.biografia as criador_biografia,
-            CASE 
-                WHEN g.id IS NOT NULL THEN true 
-                ELSE false 
-            END as criador_eh_guia,
-            COALESCE(ar.media_avaliacoes, 0) as avaliacao_media,
-            COALESCE(ar.total_avaliacoes, 0) as total_avaliacoes
-        FROM ROTEIRO r
-        JOIN PASSEIO p ON r.passeio_id = p.id
-        JOIN DESTINO d ON p.destino_id = d.id
-        JOIN PESSOA pc ON r.criador_id = pc.id
-        LEFT JOIN GUIA g ON pc.id = g.pessoa_id
-        LEFT JOIN (
-            SELECT 
-                roteiro_id,
-                AVG(nota) as media_avaliacoes,
-                COUNT(*) as total_avaliacoes
-            FROM AVALIACAO_ROTEIRO
-            GROUP BY roteiro_id
-        ) ar ON r.id = ar.roteiro_id
-        WHERE 1=1
-    `;
+        // Base query para WHERE conditions
+        let conditions = '1=1';
         const queryParams = [];
 
         if (status) {
-            query += ' AND r.status = ?';
+            conditions += ' AND r.status = ?';
             queryParams.push(status);
         }
 
         if (data) {
-            query += ' AND r.data = ?';
+            conditions += ' AND r.data = ?';
             queryParams.push(data);
         }
 
         if (destino) {
-            query += ' AND d.id = ?';
+            conditions += ' AND d.id = ?';
             queryParams.push(destino);
         }
 
         if (criadorId) {
-            query += ' AND r.criador_id = ?';
+            conditions += ' AND r.criador_id = ?';
             queryParams.push(criadorId);
         }
 
-        query += ' ORDER BY r.data ASC, r.hora_inicio ASC';
+        // Query para contar total de registros
+        const countQuery = `
+            SELECT COUNT(*) as total 
+            FROM ROTEIRO r
+            JOIN PASSEIO p ON r.passeio_id = p.id
+            JOIN DESTINO d ON p.destino_id = d.id
+            JOIN PESSOA pc ON r.criador_id = pc.id
+            WHERE ${conditions}
+        `;
+        
+        const [totalCount] = await pool.query(countQuery, queryParams);
+        const total = totalCount[0].total;
+        const totalPages = Math.ceil(total / parseInt(limit));
 
-        const [roteiros] = await pool.query(query, queryParams);
+        // Query principal com todos os campos
+        const query = `
+            SELECT 
+                r.*,
+                p.nome as passeio_nome,
+                p.descricao as passeio_descricao,
+                p.preco,
+                p.duracao_horas,
+                p.nivel_dificuldade,
+                p.inclui_refeicao,
+                p.inclui_transporte,
+                p.pessoa_id as passeio_criador_id,
+                d.nome as destino_nome,
+                d.cidade,
+                d.estado,
+                pc.id as criador_id,
+                pc.nome as criador_nome,
+                pc.email as criador_email,
+                pc.biografia as criador_biografia,
+                CASE 
+                    WHEN g.id IS NOT NULL THEN true 
+                    ELSE false 
+                END as criador_eh_guia,
+                COALESCE(ar.media_avaliacoes, 0) as avaliacao_media,
+                COALESCE(ar.total_avaliacoes, 0) as total_avaliacoes
+            FROM ROTEIRO r
+            JOIN PASSEIO p ON r.passeio_id = p.id
+            JOIN DESTINO d ON p.destino_id = d.id
+            JOIN PESSOA pc ON r.criador_id = pc.id
+            LEFT JOIN GUIA g ON pc.id = g.pessoa_id
+            LEFT JOIN (
+                SELECT 
+                    roteiro_id,
+                    AVG(nota) as media_avaliacoes,
+                    COUNT(*) as total_avaliacoes
+                FROM AVALIACAO_ROTEIRO
+                GROUP BY roteiro_id
+            ) ar ON r.id = ar.roteiro_id
+            WHERE ${conditions}
+            ORDER BY r.data ASC, r.hora_inicio ASC
+            LIMIT ? OFFSET ?
+        `;
+
+        // Adicionar parâmetros de paginação
+        const queryParamsWithPagination = [...queryParams, parseInt(limit), offset];
+
+        const [roteiros] = await pool.query(query, queryParamsWithPagination);
 
         res.json({
             success: true,
             roteiros,
+            pagination: {
+                total,
+                totalPages,
+                currentPage: parseInt(page),
+                limit: parseInt(limit),
+                hasNext: parseInt(page) < totalPages,
+                hasPrevious: parseInt(page) > 1
+            }
         });
     } catch (error) {
         console.error('Erro ao listar roteiros:', error);
         res.status(500).json({
             success: false,
-            message: 'Erro ao listar roteiros',
+            message: 'Erro ao listar roteiros'
         });
     }
 };

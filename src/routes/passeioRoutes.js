@@ -114,6 +114,18 @@ router.post('/', authMiddleware, createPasseio);
  *         schema:
  *           type: number
  *         description: Preço máximo
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Número da página
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Quantidade de itens por página
  *     responses:
  *       200:
  *         description: Lista de passeios recuperada com sucesso
@@ -129,7 +141,28 @@ router.post('/', authMiddleware, createPasseio);
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/PasseioCompleto'
- */ 
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       description: Total de passeios
+ *                     totalPages:
+ *                       type: integer
+ *                       description: Total de páginas
+ *                     currentPage:
+ *                       type: integer
+ *                       description: Página atual
+ *                     limit:
+ *                       type: integer
+ *                       description: Itens por página
+ *                     hasNext:
+ *                       type: boolean
+ *                       description: Indica se há próxima página
+ *                     hasPrevious:
+ *                       type: boolean
+ *                       description: Indica se há página anterior
+ */
 router.get('/', listPasseios);
 
 /**

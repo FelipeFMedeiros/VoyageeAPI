@@ -72,9 +72,63 @@ export const createPasseio = async (req, res) => {
 
 export const listPasseios = async (req, res) => {
     try {
-        const { destino_id, criador_id, nivel_dificuldade, preco_min, preco_max } = req.query;
+        const { 
+            destino_id, 
+            criador_id, 
+            nivel_dificuldade, 
+            preco_min, 
+            preco_max,
+            page = 1,
+            limit = 10 
+        } = req.query;
+        
+        const offset = (parseInt(page) - 1) * parseInt(limit);
 
-        let query = `
+        // Base query para WHERE conditions
+        let conditions = '1=1';
+        const queryParams = [];
+
+        if (destino_id) {
+            conditions += ' AND p.destino_id = ?';
+            queryParams.push(destino_id);
+        }
+
+        if (criador_id) {
+            conditions += ' AND p.pessoa_id = ?';
+            queryParams.push(criador_id);
+        }
+
+        if (nivel_dificuldade) {
+            conditions += ' AND p.nivel_dificuldade = ?';
+            queryParams.push(nivel_dificuldade);
+        }
+
+        if (preco_min) {
+            conditions += ' AND p.preco >= ?';
+            queryParams.push(preco_min);
+        }
+
+        if (preco_max) {
+            conditions += ' AND p.preco <= ?';
+            queryParams.push(preco_max);
+        }
+
+        // Query para contar total de registros
+        const countQuery = `
+            SELECT COUNT(*) as total 
+            FROM PASSEIO p
+            JOIN DESTINO d ON p.destino_id = d.id
+            JOIN PESSOA pc ON p.pessoa_id = pc.id
+            LEFT JOIN GUIA g ON pc.id = g.pessoa_id
+            WHERE ${conditions}
+        `;
+        
+        const [totalCount] = await pool.query(countQuery, queryParams);
+        const total = totalCount[0].total;
+        const totalPages = Math.ceil(total / parseInt(limit));
+
+        // Query principal com todos os campos
+        const query = `
             SELECT 
                 p.*,
                 d.nome as destino_nome,
@@ -91,40 +145,27 @@ export const listPasseios = async (req, res) => {
             JOIN DESTINO d ON p.destino_id = d.id
             JOIN PESSOA pc ON p.pessoa_id = pc.id
             LEFT JOIN GUIA g ON pc.id = g.pessoa_id
-            WHERE 1=1
+            WHERE ${conditions}
+            ORDER BY p.created_at DESC
+            LIMIT ? OFFSET ?
         `;
-        const queryParams = [];
 
-        if (destino_id) {
-            query += ' AND p.destino_id = ?';
-            queryParams.push(destino_id);
-        }
+        // Adicionar parâmetros de paginação
+        const queryParamsWithPagination = [...queryParams, parseInt(limit), offset];
 
-        if (criador_id) {
-            query += ' AND p.pessoa_id = ?';
-            queryParams.push(criador_id);
-        }
-
-        if (nivel_dificuldade) {
-            query += ' AND p.nivel_dificuldade = ?';
-            queryParams.push(nivel_dificuldade);
-        }
-
-        if (preco_min) {
-            query += ' AND p.preco >= ?';
-            queryParams.push(preco_min);
-        }
-
-        if (preco_max) {
-            query += ' AND p.preco <= ?';
-            queryParams.push(preco_max);
-        }
-
-        const [passeios] = await pool.query(query, queryParams);
+        const [passeios] = await pool.query(query, queryParamsWithPagination);
 
         res.json({
             success: true,
-            passeios
+            passeios,
+            pagination: {
+                total,
+                totalPages,
+                currentPage: parseInt(page),
+                limit: parseInt(limit),
+                hasNext: parseInt(page) < totalPages,
+                hasPrevious: parseInt(page) > 1
+            }
         });
 
     } catch (error) {

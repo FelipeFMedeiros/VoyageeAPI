@@ -75,7 +75,7 @@ router.post('/', authMiddleware, createDestino);
  *   get:
  *     tags: [Destinos]
  *     summary: Lista todos os destinos
- *     description: Retorna uma lista de todos os destinos turísticos cadastrados
+ *     description: Retorna uma lista paginada de todos os destinos turísticos cadastrados
  *     parameters:
  *       - in: query
  *         name: estado
@@ -87,9 +87,56 @@ router.post('/', authMiddleware, createDestino);
  *         schema:
  *           type: string
  *         description: Filtrar por cidade
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Número da página
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Quantidade de itens por página
  *     responses:
  *       200:
  *         description: Lista de destinos recuperada com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 destinos:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/DestinoCompleto'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       description: Total de destinos
+ *                     totalPages:
+ *                       type: integer
+ *                       description: Total de páginas
+ *                     currentPage:
+ *                       type: integer
+ *                       description: Página atual
+ *                     limit:
+ *                       type: integer
+ *                       description: Itens por página
+ *                     hasNext:
+ *                       type: boolean
+ *                       description: Indica se há próxima página
+ *                     hasPrevious:
+ *                       type: boolean
+ *                       description: Indica se há página anterior
+ *       500:
+ *         description: Erro ao listar destinos
  */
 router.get('/', listDestinos);
 

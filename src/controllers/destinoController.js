@@ -62,34 +62,77 @@ export const createDestino = async (req, res) => {
 
 export const listDestinos = async (req, res) => {
     try {
-        const { estado, cidade } = req.query;
+        const { estado, cidade, page = 1, limit = 10 } = req.query;
+        const offset = (parseInt(page) - 1) * parseInt(limit);
 
-        let query = 'SELECT * FROM DESTINO WHERE 1=1';
+        // Base query para WHERE conditions
+        let conditions = '1=1';
         const queryParams = [];
 
         if (estado) {
-            query += ' AND estado = ?';
+            conditions += ' AND d.estado = ?';
             queryParams.push(estado.toUpperCase());
         }
 
         if (cidade) {
-            query += ' AND cidade LIKE ?';
+            conditions += ' AND d.cidade LIKE ?';
             queryParams.push(`%${cidade}%`);
         }
 
-        query += ' ORDER BY estado, cidade, nome';
+        // Query para contar total de registros
+        const countQuery = `
+            SELECT COUNT(*) as total 
+            FROM DESTINO d
+            JOIN PESSOA p ON d.user_id = p.id
+            LEFT JOIN GUIA g ON p.id = g.pessoa_id
+            WHERE ${conditions}
+        `;
+        
+        const [totalCount] = await pool.query(countQuery, queryParams);
+        const total = totalCount[0].total;
+        const totalPages = Math.ceil(total / parseInt(limit));
 
-        const [destinos] = await pool.query(query, queryParams);
+        // Query principal com todos os campos
+        const query = `
+            SELECT 
+                d.*,
+                p.nome as criador_nome,
+                p.email as criador_email,
+                CASE 
+                    WHEN g.id IS NOT NULL THEN true 
+                    ELSE false 
+                END as criador_eh_guia,
+                (SELECT COUNT(*) FROM PASSEIO WHERE destino_id = d.id) as total_passeios
+            FROM DESTINO d
+            JOIN PESSOA p ON d.user_id = p.id
+            LEFT JOIN GUIA g ON p.id = g.pessoa_id
+            WHERE ${conditions}
+            ORDER BY d.estado, d.cidade, d.nome
+            LIMIT ? OFFSET ?
+        `;
+
+        // Adicionar parâmetros de paginação
+        const queryParamsWithPagination = [...queryParams, parseInt(limit), offset];
+
+        const [destinos] = await pool.query(query, queryParamsWithPagination);
 
         res.json({
             success: true,
             destinos,
+            pagination: {
+                total,
+                totalPages,
+                currentPage: parseInt(page),
+                limit: parseInt(limit),
+                hasNext: parseInt(page) < totalPages,
+                hasPrevious: parseInt(page) > 1
+            }
         });
     } catch (error) {
         console.error('Erro ao listar destinos:', error);
         res.status(500).json({
             success: false,
-            message: 'Erro ao listar destinos',
+            message: 'Erro ao listar destinos'
         });
     }
 };
