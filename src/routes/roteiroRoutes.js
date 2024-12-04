@@ -99,6 +99,18 @@ router.post('/', authMiddleware, createRoteiro);
  *         schema:
  *           type: integer
  *         description: ID do criador do roteiro
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Número da página
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Quantidade de itens por página
  *     responses:
  *       200:
  *         description: Lista de roteiros recuperada com sucesso
@@ -114,6 +126,27 @@ router.post('/', authMiddleware, createRoteiro);
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/RoteiroCompleto'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       description: Total de roteiros
+ *                     totalPages:
+ *                       type: integer
+ *                       description: Total de páginas
+ *                     currentPage:
+ *                       type: integer
+ *                       description: Página atual
+ *                     limit:
+ *                       type: integer
+ *                       description: Itens por página
+ *                     hasNext:
+ *                       type: boolean
+ *                       description: Indica se há próxima página
+ *                     hasPrevious:
+ *                       type: boolean
+ *                       description: Indica se há página anterior
  */
 router.get('/', listRoteiros);
 
