@@ -62,7 +62,7 @@ export const createDestino = async (req, res) => {
 
 export const listDestinos = async (req, res) => {
     try {
-        const { estado, cidade, page = 1, limit = 10 } = req.query;
+        const { estado, cidade, page = 1, limit = 100 } = req.query;
         const offset = (parseInt(page) - 1) * parseInt(limit);
 
         // Base query para WHERE conditions

@@ -79,7 +79,7 @@ export const listPasseios = async (req, res) => {
             preco_min, 
             preco_max,
             page = 1,
-            limit = 10 
+            limit = 100 
         } = req.query;
         
         const offset = (parseInt(page) - 1) * parseInt(limit);

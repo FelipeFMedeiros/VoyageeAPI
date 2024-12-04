@@ -116,7 +116,7 @@ export const listRoteiros = async (req, res) => {
             destino, 
             criadorId,
             page = 1,
-            limit = 10 
+            limit = 100
         } = req.query;
         
         const offset = (parseInt(page) - 1) * parseInt(limit);
