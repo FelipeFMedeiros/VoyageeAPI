@@ -183,7 +183,7 @@ router.get('/', listDestinos);
  */
 router.get('/:id', getDestinoById);
 router.patch('/:id', authMiddleware, updateDestino);
-router.delete('/:id', authMiddleware, adminMiddleware, deleteDestino);
+router.delete('/:id', authMiddleware, deleteDestino);
 
 /**
  * @swagger

@@ -207,10 +207,12 @@ export const updateDestino = async (req, res) => {
 export const deleteDestino = async (req, res) => {
     try {
         const { id } = req.params;
+        const userId = req.user.id;
+        const isAdmin = req.user.role === 'admin';
 
-        // Verificar se o destino existe
+        // Verificar se o destino existe e pegar informações do criador
         const [destinos] = await pool.query(
-            'SELECT id FROM DESTINO WHERE id = ?',
+            'SELECT id, user_id FROM DESTINO WHERE id = ?',
             [id],
         );
 
@@ -218,6 +220,14 @@ export const deleteDestino = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Destino não encontrado',
+            });
+        }
+
+        // Verificar se o usuário tem permissão para excluir
+        if (!isAdmin && destinos[0].user_id !== userId) {
+            return res.status(403).json({
+                success: false,
+                message: 'Apenas o criador ou um administrador pode excluir este destino',
             });
         }
 
@@ -230,8 +240,7 @@ export const deleteDestino = async (req, res) => {
         if (passeios.length > 0) {
             return res.status(400).json({
                 success: false,
-                message:
-                    'Não é possível excluir o destino pois existem passeios vinculados',
+                message: 'Não é possível excluir o destino pois existem passeios vinculados',
             });
         }
 
