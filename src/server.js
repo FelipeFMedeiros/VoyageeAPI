@@ -24,7 +24,7 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // Determinar a URL base
-const baseUrl = `localhost:${port}`;
+const baseUrl = `192.168.1.128:${port}`;
 
 // Configuração do Swagger
 app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -61,7 +61,7 @@ app.get('/', async (req, res) => {
 });
 
 // Inicia o servidor
-app.listen(port, 'localhost', () => {
+app.listen(port, '192.168.1.128', () => {
     console.log(`Servidor rodando em ${baseUrl}`);
     console.log(`Documentação Swagger disponível em ${baseUrl}/swagger`);
 });

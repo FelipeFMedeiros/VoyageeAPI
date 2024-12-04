@@ -4,7 +4,8 @@ import {
     listDestinos,
     getDestinoById,
     updateDestino,
-    deleteDestino 
+    deleteDestino,
+    getUserDestinos,
 } from '../controllers/destinoController.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 import adminMiddleware from '../middleware/adminMiddleware.js';
@@ -183,5 +184,84 @@ router.get('/', listDestinos);
 router.get('/:id', getDestinoById);
 router.patch('/:id', authMiddleware, updateDestino);
 router.delete('/:id', authMiddleware, adminMiddleware, deleteDestino);
+
+/**
+ * @swagger
+ * /destinos/usuario/{userId}:
+ *   get:
+ *     tags: [Destinos]
+ *     summary: Lista todos os destinos de um usuário específico
+ *     description: Retorna os destinos criados por um usuário específico, com paginação
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID do usuário
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Número da página
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Quantidade de itens por página
+ *       - in: query
+ *         name: estado
+ *         schema:
+ *           type: string
+ *         description: Filtrar por estado (UF)
+ *       - in: query
+ *         name: cidade
+ *         schema:
+ *           type: string
+ *         description: Filtrar por cidade
+ *     responses:
+ *       200:
+ *         description: Lista de destinos recuperada com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 destinos:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/DestinoCompleto'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       description: Total de destinos
+ *                     totalPages:
+ *                       type: integer
+ *                       description: Total de páginas
+ *                     currentPage:
+ *                       type: integer
+ *                       description: Página atual
+ *                     limit:
+ *                       type: integer
+ *                       description: Itens por página
+ *                     hasNext:
+ *                       type: boolean
+ *                       description: Indica se há próxima página
+ *                     hasPrevious:
+ *                       type: boolean
+ *                       description: Indica se há página anterior
+ *       404:
+ *         description: Usuário não encontrado
+ *       500:
+ *         description: Erro ao buscar destinos
+ */
+router.get('/usuario/:userId', getUserDestinos);
 
 export default router;

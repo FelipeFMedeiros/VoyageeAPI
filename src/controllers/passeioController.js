@@ -311,3 +311,92 @@ export const deletePasseio = async (req, res) => {
         });
     }
 };
+
+export const getUserPasseios = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+        const nivel_dificuldade = req.query.nivel_dificuldade;
+
+        // Construir a query base
+        let query = `
+            SELECT 
+                p.*,
+                d.nome as destino_nome,
+                d.cidade,
+                d.estado,
+                d.latitude,
+                d.longitude,
+                ps.nome as criador_nome,
+                ps.email as criador_email,
+                CASE 
+                    WHEN g.id IS NOT NULL THEN true 
+                    ELSE false 
+                END as criador_eh_guia
+            FROM PASSEIO p
+            JOIN DESTINO d ON p.destino_id = d.id
+            JOIN PESSOA ps ON p.pessoa_id = ps.id
+            LEFT JOIN GUIA g ON ps.id = g.pessoa_id
+            WHERE p.pessoa_id = ?
+        `;
+
+        const queryParams = [userId];
+
+        if (nivel_dificuldade) {
+            query += ' AND p.nivel_dificuldade = ?';
+            queryParams.push(nivel_dificuldade);
+        }
+
+        // Adicionar ordenação
+        query += ' ORDER BY p.created_at DESC';
+
+        // Adicionar paginação
+        query += ' LIMIT ? OFFSET ?';
+        queryParams.push(limit, offset);
+
+        // Executar query principal
+        const [passeios] = await pool.query(query, queryParams);
+
+        // Buscar contagem total para paginação
+        const [totalCount] = await pool.query(
+            `SELECT COUNT(*) as total 
+             FROM PASSEIO p 
+             WHERE p.pessoa_id = ?
+             ${nivel_dificuldade ? 'AND p.nivel_dificuldade = ?' : ''}`,
+            nivel_dificuldade ? [userId, nivel_dificuldade] : [userId]
+        );
+
+        const total = totalCount[0].total;
+        const totalPages = Math.ceil(total / limit);
+
+        // Para cada passeio, buscar quantidade de roteiros associados
+        for (let passeio of passeios) {
+            const [roteiros] = await pool.query(
+                `SELECT COUNT(*) as total FROM ROTEIRO WHERE passeio_id = ?`,
+                [passeio.id]
+            );
+            passeio.total_roteiros = roteiros[0].total;
+        }
+
+        res.json({
+            success: true,
+            passeios,
+            pagination: {
+                total,
+                totalPages,
+                currentPage: page,
+                limit,
+                hasNext: page < totalPages,
+                hasPrevious: page > 1
+            }
+        });
+    } catch (error) {
+        console.error('Erro ao buscar passeios do usuário:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao buscar passeios do usuário'
+        });
+    }
+};

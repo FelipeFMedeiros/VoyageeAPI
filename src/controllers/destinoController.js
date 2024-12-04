@@ -249,3 +249,85 @@ export const deleteDestino = async (req, res) => {
         });
     }
 };
+
+export const getUserDestinos = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+        const estado = req.query.estado;
+        const cidade = req.query.cidade;
+
+        // Construir a query base
+        let query = `
+            SELECT 
+                d.*,
+                p.nome as criador_nome,
+                p.email as criador_email,
+                CASE 
+                    WHEN g.id IS NOT NULL THEN true 
+                    ELSE false 
+                END as criador_eh_guia,
+                (SELECT COUNT(*) FROM PASSEIO WHERE destino_id = d.id) as total_passeios
+            FROM DESTINO d
+            JOIN PESSOA p ON d.user_id = p.id
+            LEFT JOIN GUIA g ON p.id = g.pessoa_id
+            WHERE d.user_id = ?
+        `;
+
+        const queryParams = [userId];
+
+        if (estado) {
+            query += ' AND d.estado = ?';
+            queryParams.push(estado.toUpperCase());
+        }
+
+        if (cidade) {
+            query += ' AND d.cidade LIKE ?';
+            queryParams.push(`%${cidade}%`);
+        }
+
+        // Adicionar ordenação
+        query += ' ORDER BY d.created_at DESC';
+
+        // Adicionar paginação
+        query += ' LIMIT ? OFFSET ?';
+        queryParams.push(limit, offset);
+
+        // Executar query principal
+        const [destinos] = await pool.query(query, queryParams);
+
+        // Buscar contagem total para paginação
+        const [totalCount] = await pool.query(
+            `SELECT COUNT(*) as total 
+             FROM DESTINO 
+             WHERE user_id = ?
+             ${estado ? 'AND estado = ?' : ''}
+             ${cidade ? 'AND cidade LIKE ?' : ''}`,
+            queryParams.slice(0, -2) // Remove os parâmetros de LIMIT e OFFSET
+        );
+
+        const total = totalCount[0].total;
+        const totalPages = Math.ceil(total / limit);
+
+        res.json({
+            success: true,
+            destinos,
+            pagination: {
+                total,
+                totalPages,
+                currentPage: page,
+                limit,
+                hasNext: page < totalPages,
+                hasPrevious: page > 1
+            }
+        });
+    } catch (error) {
+        console.error('Erro ao buscar destinos do usuário:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao buscar destinos do usuário'
+        });
+    }
+};
