@@ -2,16 +2,9 @@ import pool from '../config/database.js';
 
 export const createRoteiro = async (req, res) => {
     try {
-        const { passeioId, data, horaInicio, horaFim, vagasDisponiveis } =
-            req.body;
+        const { passeioId, data, horaInicio, horaFim, vagasDisponiveis } = req.body;
 
-        if (
-            !passeioId ||
-            !data ||
-            !horaInicio ||
-            !horaFim ||
-            !vagasDisponiveis
-        ) {
+        if (!passeioId || !data || !horaInicio || !horaFim || !vagasDisponiveis) {
             return res.status(400).json({
                 success: false,
                 message: 'Todos os campos obrigatórios devem ser preenchidos',
@@ -22,7 +15,7 @@ export const createRoteiro = async (req, res) => {
 
         // Verificar se o passeio existe
         const [passeios] = await pool.query(
-            'SELECT id, destino_id, guia_id FROM PASSEIO WHERE id = ?',
+            'SELECT id, destino_id, pessoa_id FROM PASSEIO WHERE id = ?',
             [passeioId],
         );
 
@@ -44,14 +37,7 @@ export const createRoteiro = async (req, res) => {
                     passeio_id, data, hora_inicio, hora_fim, 
                     status, vagas_disponiveis, criador_id
                 ) VALUES (?, ?, ?, ?, 'agendado', ?, ?)`,
-                [
-                    passeioId,
-                    data,
-                    horaInicio,
-                    horaFim,
-                    vagasDisponiveis,
-                    userId,
-                ],
+                [passeioId, data, horaInicio, horaFim, vagasDisponiveis, userId],
             );
 
             await connection.commit();
@@ -69,23 +55,26 @@ export const createRoteiro = async (req, res) => {
                     p.inclui_refeicao,
                     p.inclui_transporte,
                     p.capacidade_maxima,
+                    p.pessoa_id as passeio_criador_id,
                     d.nome as destino_nome,
                     d.cidade,
                     d.estado,
                     d.latitude,
                     d.longitude,
-                    g.id as guia_id,
-                    ps.nome as guia_nome,
-                    ps.email as guia_email,
                     pc.nome as criador_nome,
+                    pc.email as criador_email,
+                    pc.biografia as criador_biografia,
+                    CASE 
+                        WHEN g.id IS NOT NULL THEN true 
+                        ELSE false 
+                    END as criador_eh_guia,
                     COALESCE(ar.media_avaliacoes, 0) as avaliacao_media,
                     COALESCE(ar.total_avaliacoes, 0) as total_avaliacoes
                 FROM ROTEIRO r
                 JOIN PASSEIO p ON r.passeio_id = p.id
                 JOIN DESTINO d ON p.destino_id = d.id
-                JOIN GUIA g ON p.guia_id = g.id
-                JOIN PESSOA ps ON g.pessoa_id = ps.id
                 JOIN PESSOA pc ON r.criador_id = pc.id
+                LEFT JOIN GUIA g ON pc.id = g.pessoa_id
                 LEFT JOIN (
                     SELECT 
                         roteiro_id,
@@ -121,42 +110,47 @@ export const createRoteiro = async (req, res) => {
 
 export const listRoteiros = async (req, res) => {
     try {
-        const { status, data, destino, guiaId } = req.query;
+        const { status, data, destino, criadorId } = req.query;
 
         let query = `
+        SELECT 
+            r.*,
+            p.nome as passeio_nome,
+            p.descricao as passeio_descricao,
+            p.preco,
+            p.duracao_horas,
+            p.nivel_dificuldade,
+            p.inclui_refeicao,
+            p.inclui_transporte,
+            p.pessoa_id as passeio_criador_id,
+            d.nome as destino_nome,
+            d.cidade,
+            d.estado,
+            pc.id as criador_id,
+            pc.nome as criador_nome,
+            pc.email as criador_email,
+            pc.biografia as criador_biografia,
+            CASE 
+                WHEN g.id IS NOT NULL THEN true 
+                ELSE false 
+            END as criador_eh_guia,
+            COALESCE(ar.media_avaliacoes, 0) as avaliacao_media,
+            COALESCE(ar.total_avaliacoes, 0) as total_avaliacoes
+        FROM ROTEIRO r
+        JOIN PASSEIO p ON r.passeio_id = p.id
+        JOIN DESTINO d ON p.destino_id = d.id
+        JOIN PESSOA pc ON r.criador_id = pc.id
+        LEFT JOIN GUIA g ON pc.id = g.pessoa_id
+        LEFT JOIN (
             SELECT 
-                r.*,
-                p.nome as passeio_nome,
-                p.descricao as passeio_descricao,
-                p.preco,
-                p.duracao_horas,
-                p.nivel_dificuldade,
-                p.inclui_refeicao,
-                p.inclui_transporte,
-                d.nome as destino_nome,
-                d.cidade,
-                d.estado,
-                g.id as guia_id,
-                ps.nome as guia_nome,
-                pc.nome as criador_nome,
-                COALESCE(ar.media_avaliacoes, 0) as avaliacao_media,
-                COALESCE(ar.total_avaliacoes, 0) as total_avaliacoes
-            FROM ROTEIRO r
-            JOIN PASSEIO p ON r.passeio_id = p.id
-            JOIN DESTINO d ON p.destino_id = d.id
-            JOIN GUIA g ON p.guia_id = g.id
-            JOIN PESSOA ps ON g.pessoa_id = ps.id
-            JOIN PESSOA pc ON r.criador_id = pc.id
-            LEFT JOIN (
-                SELECT 
-                    roteiro_id,
-                    AVG(nota) as media_avaliacoes,
-                    COUNT(*) as total_avaliacoes
-                FROM AVALIACAO_ROTEIRO
-                GROUP BY roteiro_id
-            ) ar ON r.id = ar.roteiro_id
-            WHERE 1=1
-        `;
+                roteiro_id,
+                AVG(nota) as media_avaliacoes,
+                COUNT(*) as total_avaliacoes
+            FROM AVALIACAO_ROTEIRO
+            GROUP BY roteiro_id
+        ) ar ON r.id = ar.roteiro_id
+        WHERE 1=1
+    `;
         const queryParams = [];
 
         if (status) {
@@ -174,9 +168,9 @@ export const listRoteiros = async (req, res) => {
             queryParams.push(destino);
         }
 
-        if (guiaId) {
-            query += ' AND g.id = ?';
-            queryParams.push(guiaId);
+        if (criadorId) {
+            query += ' AND r.criador_id = ?';
+            queryParams.push(criadorId);
         }
 
         query += ' ORDER BY r.data ASC, r.hora_inicio ASC';
@@ -213,25 +207,28 @@ export const getRoteiroById = async (req, res) => {
                     p.inclui_refeicao,
                     p.inclui_transporte,
                     p.capacidade_maxima,
+                    p.pessoa_id as passeio_criador_id,
                     d.nome as destino_nome,
                     d.cidade,
                     d.estado,
                     d.descricao as destino_descricao,
                     d.latitude,
                     d.longitude,
-                    g.id as guia_id,
-                    ps.nome as guia_nome,
-                    ps.email as guia_email,
+                    pc.id as criador_id,
                     pc.nome as criador_nome,
                     pc.email as criador_email,
+                    pc.biografia as criador_biografia,
+                    CASE 
+                        WHEN g.id IS NOT NULL THEN true 
+                        ELSE false 
+                    END as criador_eh_guia,
                     COALESCE(ar.media_avaliacoes, 0) as avaliacao_media,
                     COALESCE(ar.total_avaliacoes, 0) as total_avaliacoes
                 FROM ROTEIRO r
                 JOIN PASSEIO p ON r.passeio_id = p.id
                 JOIN DESTINO d ON p.destino_id = d.id
-                JOIN GUIA g ON p.guia_id = g.id
-                JOIN PESSOA ps ON g.pessoa_id = ps.id
                 JOIN PESSOA pc ON r.criador_id = pc.id
+                LEFT JOIN GUIA g ON pc.id = g.pessoa_id
                 LEFT JOIN (
                     SELECT 
                         roteiro_id,
@@ -242,7 +239,7 @@ export const getRoteiroById = async (req, res) => {
                 ) ar ON r.id = ar.roteiro_id
                 WHERE r.id = ?
             `,
-            [id],
+            [id]
         );
 
         if (roteiros.length === 0) {
@@ -384,208 +381,334 @@ export const avaliarRoteiro = async (req, res) => {
 };
 
 export const updateRoteiro = async (req, res) => {
-        try {
-            const { id } = req.params;
-            const { data, horaInicio, horaFim, status, vagasDisponiveis } = req.body;
-            const userId = req.user.id;
-    
-            // Verificar se o roteiro existe e se o usuário é o criador
-            const [roteiros] = await pool.query(
-                'SELECT * FROM ROTEIRO WHERE id = ?',
-                [id]
-            );
-    
-            if (roteiros.length === 0) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Roteiro não encontrado'
-                });
-            }
-    
-            const roteiro = roteiros[0];
-    
-            // Verificar se o usuário é o criador do roteiro
-            if (roteiro.criador_id !== userId) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Apenas o criador pode atualizar o roteiro'
-                });
-            }
-    
-            // Não permitir atualização de roteiros concluídos ou cancelados
-            if (roteiro.status === 'concluido' || roteiro.status === 'cancelado') {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Não é possível atualizar roteiros concluídos ou cancelados'
-                });
-            }
-    
-            // Construir query de atualização dinamicamente
-            const updateFields = [];
-            const updateValues = [];
-    
-            if (data) {
-                updateFields.push('data = ?');
-                updateValues.push(data);
-            }
-            if (horaInicio) {
-                updateFields.push('hora_inicio = ?');
-                updateValues.push(horaInicio);
-            }
-            if (horaFim) {
-                updateFields.push('hora_fim = ?');
-                updateValues.push(horaFim);
-            }
-            if (status) {
-                updateFields.push('status = ?');
-                updateValues.push(status);
-            }
-            if (vagasDisponiveis !== undefined) {
-                updateFields.push('vagas_disponiveis = ?');
-                updateValues.push(vagasDisponiveis);
-            }
-    
-            if (updateFields.length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Nenhum campo para atualizar'
-                });
-            }
-    
-            // Adicionar id para WHERE
-            updateValues.push(id);
-    
-            // Iniciar transação
-            const connection = await pool.getConnection();
-            await connection.beginTransaction();
-    
-            try {
-                await connection.query(
-                    `UPDATE ROTEIRO SET ${updateFields.join(', ')} WHERE id = ?`,
-                    updateValues
-                );
-    
-                // Buscar roteiro atualizado com todas as informações
-                const [roteiroAtualizado] = await connection.query(`
-                    SELECT 
-                        r.*,
-                        p.nome as passeio_nome,
-                        p.descricao as passeio_descricao,
-                        p.preco,
-                        p.duracao_horas,
-                        p.nivel_dificuldade,
-                        p.inclui_refeicao,
-                        p.inclui_transporte,
-                        d.nome as destino_nome,
-                        d.cidade,
-                        d.estado,
-                        ps.nome as guia_nome,
-                        pc.nome as criador_nome
-                    FROM ROTEIRO r
-                    JOIN PASSEIO p ON r.passeio_id = p.id
-                    JOIN DESTINO d ON p.destino_id = d.id
-                    JOIN GUIA g ON p.guia_id = g.id
-                    JOIN PESSOA ps ON g.pessoa_id = ps.id
-                    JOIN PESSOA pc ON r.criador_id = pc.id
-                    WHERE r.id = ?
-                `, [id]);
-    
-                await connection.commit();
-    
-                res.json({
-                    success: true,
-                    message: 'Roteiro atualizado com sucesso',
-                    roteiro: roteiroAtualizado[0]
-                });
-    
-            } catch (error) {
-                await connection.rollback();
-                throw error;
-            } finally {
-                connection.release();
-            }
-    
-        } catch (error) {
-            console.error('Erro ao atualizar roteiro:', error);
-            res.status(500).json({
+    try {
+        const { id } = req.params;
+        const { data, horaInicio, horaFim, status, vagasDisponiveis } = req.body;
+        const userId = req.user.id;
+        const isAdmin = req.user.role === 'admin';
+
+        // Verificar se o roteiro existe
+        const [roteiros] = await pool.query(
+            'SELECT * FROM ROTEIRO WHERE id = ?',
+            [id],
+        );
+
+        if (roteiros.length === 0) {
+            return res.status(404).json({
                 success: false,
-                message: 'Erro ao atualizar roteiro'
+                message: 'Roteiro não encontrado',
             });
         }
-    };
-    
-    export const deleteRoteiro = async (req, res) => {
-        try {
-            const { id } = req.params;
-            const userId = req.user.id;
-    
-            // Verificar se o roteiro existe e se o usuário é o criador
-            const [roteiros] = await pool.query(
-                'SELECT * FROM ROTEIRO WHERE id = ?',
-                [id]
-            );
-    
-            if (roteiros.length === 0) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'Roteiro não encontrado'
-                });
-            }
-    
-            const roteiro = roteiros[0];
-    
-            // Verificar se o usuário é o criador do roteiro
-            if (roteiro.criador_id !== userId) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Apenas o criador pode excluir o roteiro'
-                });
-            }
-    
-            // Não permitir exclusão de roteiros concluídos
-            if (roteiro.status === 'concluido') {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Não é possível excluir roteiros concluídos'
-                });
-            }
-    
-            // Iniciar transação
-            const connection = await pool.getConnection();
-            await connection.beginTransaction();
-    
-            try {
-                // Excluir avaliações relacionadas
-                await connection.query(
-                    'DELETE FROM AVALIACAO_ROTEIRO WHERE roteiro_id = ?',
-                    [id]
-                );
-    
-                // Excluir roteiro
-                await connection.query(
-                    'DELETE FROM ROTEIRO WHERE id = ?',
-                    [id]
-                );
-    
-                await connection.commit();
-    
-                res.json({
-                    success: true,
-                    message: 'Roteiro removido com sucesso'
-                });
-    
-            } catch (error) {
-                await connection.rollback();
-                throw error;
-            } finally {
-                connection.release();
-            }
-    
-        } catch (error) {
-            console.error('Erro ao excluir roteiro:', error);
-            res.status(500).json({
+
+        const roteiro = roteiros[0];
+
+        // Verificar se o usuário tem permissão (admin ou criador)
+        if (!isAdmin && roteiro.criador_id !== userId) {
+            return res.status(403).json({
                 success: false,
-                message: 'Erro ao excluir roteiro'
+                message: 'Apenas o criador ou um administrador pode atualizar o roteiro',
             });
         }
-    };
+
+        // Não permitir atualização de roteiros concluídos ou cancelados
+        if (roteiro.status === 'concluido' || roteiro.status === 'cancelado') {
+            return res.status(400).json({
+                success: false,
+                message: 'Não é possível atualizar roteiros concluídos ou cancelados',
+            });
+        }
+
+        // Construir query de atualização dinamicamente
+        const updateFields = [];
+        const updateValues = [];
+
+        if (data) {
+            updateFields.push('data = ?');
+            updateValues.push(data);
+        }
+        if (horaInicio) {
+            updateFields.push('hora_inicio = ?');
+            updateValues.push(horaInicio);
+        }
+        if (horaFim) {
+            updateFields.push('hora_fim = ?');
+            updateValues.push(horaFim);
+        }
+        if (status) {
+            updateFields.push('status = ?');
+            updateValues.push(status);
+        }
+        if (vagasDisponiveis !== undefined) {
+            updateFields.push('vagas_disponiveis = ?');
+            updateValues.push(vagasDisponiveis);
+        }
+
+        if (updateFields.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Nenhum campo para atualizar',
+            });
+        }
+
+        updateValues.push(id);
+
+        // Iniciar transação
+        const connection = await pool.getConnection();
+        await connection.beginTransaction();
+
+        try {
+            await connection.query(
+                `UPDATE ROTEIRO SET ${updateFields.join(', ')} WHERE id = ?`,
+                updateValues,
+            );
+
+            // Buscar roteiro atualizado com todas as informações
+            const [roteiroAtualizado] = await connection.query(
+                `
+                SELECT 
+                    r.*,
+                    p.nome as passeio_nome,
+                    p.descricao as passeio_descricao,
+                    p.preco,
+                    p.duracao_horas,
+                    p.nivel_dificuldade,
+                    p.inclui_refeicao,
+                    p.inclui_transporte,
+                    p.pessoa_id as passeio_criador_id,
+                    d.nome as destino_nome,
+                    d.cidade,
+                    d.estado,
+                    pc.nome as criador_nome,
+                    pc.email as criador_email,
+                    pc.biografia as criador_biografia,
+                    CASE 
+                        WHEN g.id IS NOT NULL THEN true 
+                        ELSE false 
+                    END as criador_eh_guia
+                FROM ROTEIRO r
+                JOIN PASSEIO p ON r.passeio_id = p.id
+                JOIN DESTINO d ON p.destino_id = d.id
+                JOIN PESSOA pc ON r.criador_id = pc.id
+                LEFT JOIN GUIA g ON pc.id = g.pessoa_id
+                WHERE r.id = ?
+                `,
+                [id],
+            );
+
+            await connection.commit();
+
+            res.json({
+                success: true,
+                message: 'Roteiro atualizado com sucesso',
+                roteiro: roteiroAtualizado[0],
+            });
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+    } catch (error) {
+        console.error('Erro ao atualizar roteiro:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao atualizar roteiro',
+        });
+    }
+};
+
+export const deleteRoteiro = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+        const isAdmin = req.user.role === 'admin';
+
+        // Verificar se o roteiro existe
+        const [roteiros] = await pool.query(
+            'SELECT * FROM ROTEIRO WHERE id = ?',
+            [id],
+        );
+
+        if (roteiros.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Roteiro não encontrado',
+            });
+        }
+
+        const roteiro = roteiros[0];
+
+        // Verificar se o usuário tem permissão (admin ou criador)
+        if (!isAdmin && roteiro.criador_id !== userId) {
+            return res.status(403).json({
+                success: false,
+                message:
+                    'Apenas o criador ou um administrador pode excluir o roteiro',
+            });
+        }
+
+        // Não permitir exclusão de roteiros concluídos
+        if (roteiro.status === 'concluido') {
+            return res.status(400).json({
+                success: false,
+                message: 'Não é possível excluir roteiros concluídos',
+            });
+        }
+
+        // Iniciar transação
+        const connection = await pool.getConnection();
+        await connection.beginTransaction();
+
+        try {
+            // Excluir avaliações relacionadas
+            await connection.query(
+                'DELETE FROM AVALIACAO_ROTEIRO WHERE roteiro_id = ?',
+                [id],
+            );
+
+            // Excluir roteiro
+            await connection.query('DELETE FROM ROTEIRO WHERE id = ?', [id]);
+
+            await connection.commit();
+
+            res.json({
+                success: true,
+                message: 'Roteiro removido com sucesso',
+            });
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+    } catch (error) {
+        console.error('Erro ao excluir roteiro:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao excluir roteiro',
+        });
+    }
+};
+
+export const getUserRoteiros = async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+        const status = req.query.status;
+
+        // Construir a query base
+        let query = `
+            SELECT 
+                r.*,
+                p.nome as passeio_nome,
+                p.descricao as passeio_descricao,
+                p.preco,
+                p.duracao_horas,
+                p.nivel_dificuldade,
+                p.inclui_refeicao,
+                p.inclui_transporte,
+                p.capacidade_maxima,
+                p.pessoa_id as passeio_criador_id,
+                d.nome as destino_nome,
+                d.cidade,
+                d.estado,
+                d.descricao as destino_descricao,
+                d.latitude,
+                d.longitude,
+                pc.id as criador_id,
+                pc.nome as criador_nome,
+                pc.email as criador_email,
+                pc.biografia as criador_biografia,
+                CASE 
+                    WHEN g.id IS NOT NULL THEN true 
+                    ELSE false 
+                END as criador_eh_guia,
+                COALESCE(ar.media_avaliacoes, 0) as avaliacao_media,
+                COALESCE(ar.total_avaliacoes, 0) as total_avaliacoes
+            FROM ROTEIRO r
+            JOIN PASSEIO p ON r.passeio_id = p.id
+            JOIN DESTINO d ON p.destino_id = d.id
+            JOIN PESSOA pc ON r.criador_id = pc.id
+            LEFT JOIN GUIA g ON pc.id = g.pessoa_id
+            LEFT JOIN (
+                SELECT 
+                    roteiro_id,
+                    AVG(nota) as media_avaliacoes,
+                    COUNT(*) as total_avaliacoes
+                FROM AVALIACAO_ROTEIRO
+                GROUP BY roteiro_id
+            ) ar ON r.id = ar.roteiro_id
+            WHERE r.criador_id = ?
+        `;
+
+        const queryParams = [userId];
+
+        if (status) {
+            query += ' AND r.status = ?';
+            queryParams.push(status);
+        }
+
+        // Adicionar ordenação
+        query += ' ORDER BY r.data DESC, r.hora_inicio DESC';
+
+        // Adicionar paginação
+        query += ' LIMIT ? OFFSET ?';
+        queryParams.push(limit, offset);
+
+        // Executar query principal
+        const [roteiros] = await pool.query(query, queryParams);
+
+        // Buscar contagem total para paginação
+        const [totalCount] = await pool.query(
+            `SELECT COUNT(*) as total 
+             FROM ROTEIRO r 
+             WHERE r.criador_id = ?
+             ${status ? 'AND r.status = ?' : ''}`,
+            status ? [userId, status] : [userId]
+        );
+
+        const total = totalCount[0].total;
+        const totalPages = Math.ceil(total / limit);
+
+        // Para cada roteiro, buscar suas últimas 3 avaliações
+        for (let roteiro of roteiros) {
+            const [avaliacoes] = await pool.query(
+                `
+                SELECT 
+                    ar.nota,
+                    ar.comentario,
+                    ar.created_at,
+                    p.nome as avaliador_nome
+                FROM AVALIACAO_ROTEIRO ar
+                JOIN PESSOA p ON ar.usuario_id = p.id
+                WHERE ar.roteiro_id = ?
+                ORDER BY ar.created_at DESC
+                LIMIT 3
+                `,
+                [roteiro.id]
+            );
+            roteiro.avaliacoes = avaliacoes;
+        }
+
+        res.json({
+            success: true,
+            roteiros,
+            pagination: {
+                total,
+                totalPages,
+                currentPage: page,
+                limit,
+                hasNext: page < totalPages,
+                hasPrevious: page > 1
+            }
+        });
+    } catch (error) {
+        console.error('Erro ao buscar roteiros do usuário:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erro ao buscar roteiros do usuário'
+        });
+    }
+};

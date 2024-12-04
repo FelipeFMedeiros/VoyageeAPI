@@ -24,7 +24,7 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // Determinar a URL base
-const baseUrl = `http://192.168.1.128:${port}`;
+const baseUrl = `192.168.1.128:${port}`;
 
 // Configuração do Swagger
 app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

@@ -4,7 +4,8 @@ import {
     listPasseios,
     getPasseioById,
     updatePasseio,
-    deletePasseio 
+    deletePasseio,
+    getUserPasseios,
 } from '../controllers/passeioController.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 
@@ -23,7 +24,7 @@ const router = express.Router();
  *   post:
  *     tags: [Passeios]
  *     summary: Cria um novo passeio
- *     description: Cria um novo passeio turístico (requer ser guia ou admin)
+ *     description: Cria um novo passeio turístico (requer autenticação)
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -93,10 +94,10 @@ router.post('/', authMiddleware, createPasseio);
  *           type: integer
  *         description: Filtrar por destino
  *       - in: query
- *         name: guia_id
+ *         name: criador_id
  *         schema:
  *           type: integer
- *         description: Filtrar por guia
+ *         description: Filtrar por criador do passeio
  *       - in: query
  *         name: nivel_dificuldade
  *         schema:
@@ -116,7 +117,19 @@ router.post('/', authMiddleware, createPasseio);
  *     responses:
  *       200:
  *         description: Lista de passeios recuperada com sucesso
- */
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 passeios:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/PasseioCompleto'
+ */ 
 router.get('/', listPasseios);
 
 /**
@@ -208,5 +221,80 @@ router.get('/', listPasseios);
 router.get('/:id', getPasseioById);
 router.patch('/:id', authMiddleware, updatePasseio);
 router.delete('/:id', authMiddleware, deletePasseio);
+
+/**
+ * @swagger
+ * /passeios/usuario/{userId}:
+ *   get:
+ *     tags: [Passeios]
+ *     summary: Lista todos os passeios de um usuário específico
+ *     description: Retorna os passeios criados por um usuário específico, com paginação
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID do usuário
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Número da página
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Quantidade de itens por página
+ *       - in: query
+ *         name: nivel_dificuldade
+ *         schema:
+ *           type: string
+ *           enum: [facil, moderado, dificil]
+ *         description: Filtrar por nível de dificuldade
+ *     responses:
+ *       200:
+ *         description: Lista de passeios recuperada com sucesso
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 passeios:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/PasseioCompleto'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       description: Total de passeios
+ *                     totalPages:
+ *                       type: integer
+ *                       description: Total de páginas
+ *                     currentPage:
+ *                       type: integer
+ *                       description: Página atual
+ *                     limit:
+ *                       type: integer
+ *                       description: Itens por página
+ *                     hasNext:
+ *                       type: boolean
+ *                       description: Indica se há próxima página
+ *                     hasPrevious:
+ *                       type: boolean
+ *                       description: Indica se há página anterior
+ *       404:
+ *         description: Usuário não encontrado
+ *       500:
+ *         description: Erro ao buscar passeios
+ */
+router.get('/usuario/:userId', getUserPasseios);
 
 export default router;

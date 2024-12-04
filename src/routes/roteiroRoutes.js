@@ -6,6 +6,7 @@ import {
     avaliarRoteiro,
     updateRoteiro,
     deleteRoteiro,
+    getUserRoteiros,
 } from '../controllers/roteiroController.js';
 import authMiddleware from '../middleware/authMiddleware.js';
 
@@ -94,9 +95,10 @@ router.post('/', authMiddleware, createRoteiro);
  *         schema:
  *           type: integer
  *       - in: query
- *         name: guiaId
+ *         name: criadorId
  *         schema:
  *           type: integer
+ *         description: ID do criador do roteiro
  *     responses:
  *       200:
  *         description: Lista de roteiros recuperada com sucesso
@@ -226,16 +228,27 @@ router.post('/:roteiroId/avaliar', authMiddleware, avaliarRoteiro);
  *           type: boolean
  *         inclui_transporte:
  *           type: boolean
+ *         capacidade_maxima:
+ *           type: integer
+ *         passeio_criador_id:
+ *           type: integer
  *         destino_nome:
  *           type: string
  *         cidade:
  *           type: string
  *         estado:
  *           type: string
- *         guia_nome:
- *           type: string
+ *         criador_id:
+ *           type: integer
  *         criador_nome:
  *           type: string
+ *         criador_email:
+ *           type: string
+ *         criador_biografia:
+ *           type: string
+ *         criador_eh_guia:
+ *           type: boolean
+ *           description: Indica se o criador do roteiro é um guia cadastrado
  *         avaliacao_media:
  *           type: number
  *         total_avaliacoes:
@@ -261,8 +274,8 @@ router.post('/:roteiroId/avaliar', authMiddleware, avaliarRoteiro);
  * /roteiros/{id}:
  *   patch:
  *     tags: [Roteiros]
- *     summary: Atualiza parcialmente um roteiro existente
- *     description: Permite atualizar um ou mais campos do roteiro
+ *     summary: Atualiza um roteiro
+ *     description: Atualiza os dados de um roteiro (apenas o criador ou administrador)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -282,42 +295,33 @@ router.post('/:roteiroId/avaliar', authMiddleware, avaliarRoteiro);
  *               data:
  *                 type: string
  *                 format: date
- *                 example: "2024-12-25"
  *               horaInicio:
  *                 type: string
  *                 format: time
- *                 example: "09:00"
  *               horaFim:
  *                 type: string
  *                 format: time
- *                 example: "17:00"
  *               status:
  *                 type: string
  *                 enum: [agendado, confirmado, concluido, cancelado]
- *                 example: "confirmado"
  *               vagasDisponiveis:
  *                 type: integer
- *                 minimum: 0
- *                 example: 15
  *     responses:
  *       200:
  *         description: Roteiro atualizado com sucesso
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/RoteiroCompleto'
  *       400:
  *         description: Dados inválidos ou roteiro não pode ser atualizado
  *       401:
  *         description: Não autorizado
  *       403:
- *         description: Apenas o criador pode atualizar o roteiro
+ *         description: Apenas o criador ou administrador pode atualizar o roteiro 
  *       404:
  *         description: Roteiro não encontrado
  *
  *   delete:
  *     tags: [Roteiros]
  *     summary: Remove um roteiro
+ *     description: Remove um roteiro (apenas o criador ou administrador)
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -330,6 +334,53 @@ router.post('/:roteiroId/avaliar', authMiddleware, avaliarRoteiro);
  *     responses:
  *       200:
  *         description: Roteiro removido com sucesso
+ *       400:
+ *         description: Roteiro não pode ser removido
+ *       401:
+ *         description: Não autorizado
+ *       403:
+ *         description: Apenas o criador ou administrador pode remover o roteiro
+ *       404:
+ *         description: Roteiro não encontrado
+ */
+router.patch('/:id', authMiddleware, updateRoteiro);
+router.delete('/:id', authMiddleware, deleteRoteiro);
+
+/**
+ * @swagger
+ * /roteiros/usuario/{userId}:
+ *   get:
+ *     tags: [Roteiros]
+ *     summary: Lista todos os roteiros de um usuário específico
+ *     description: Retorna os roteiros criados por um usuário específico, com paginação
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID do usuário
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Número da página
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Quantidade de itens por página
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [agendado, confirmado, concluido, cancelado]
+ *         description: Filtrar por status do roteiro
+ *     responses:
+ *       200:
+ *         description: Lista de roteiros recuperada com sucesso
  *         content:
  *           application/json:
  *             schema:
@@ -338,19 +389,36 @@ router.post('/:roteiroId/avaliar', authMiddleware, avaliarRoteiro);
  *                 success:
  *                   type: boolean
  *                   example: true
- *                 message:
- *                   type: string
- *                   example: "Roteiro removido com sucesso"
- *       400:
- *         description: Roteiro não pode ser removido
- *       401:
- *         description: Não autorizado
- *       403:
- *         description: Apenas o criador pode remover o roteiro
+ *                 roteiros:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/RoteiroCompleto'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       description: Total de roteiros
+ *                     totalPages:
+ *                       type: integer
+ *                       description: Total de páginas
+ *                     currentPage:
+ *                       type: integer
+ *                       description: Página atual
+ *                     limit:
+ *                       type: integer
+ *                       description: Itens por página
+ *                     hasNext:
+ *                       type: boolean
+ *                       description: Indica se há próxima página
+ *                     hasPrevious:
+ *                       type: boolean
+ *                       description: Indica se há página anterior
  *       404:
- *         description: Roteiro não encontrado
+ *         description: Usuário não encontrado
+ *       500:
+ *         description: Erro ao buscar roteiros
  */
-router.patch('/:id', authMiddleware, updateRoteiro);
-router.delete('/:id', authMiddleware, deleteRoteiro);
+router.get('/usuario/:userId', getUserRoteiros);
 
 export default router;
