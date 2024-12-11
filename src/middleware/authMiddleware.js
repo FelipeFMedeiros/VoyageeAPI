@@ -11,11 +11,11 @@ const authMiddleware = async (req, res, next) => {
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         
-        // Buscar informações do usuário com join entre PESSOA e AUTH
+        // Buscar informações do usuário com join entre PESSOAS e AUTHS
         const [users] = await pool.query(
             `SELECT p.*, a.role 
-             FROM PESSOA p 
-             JOIN AUTH a ON p.id = a.pessoa_id 
+             FROM PESSOAS p 
+             JOIN AUTHs a ON p.id = a.pessoa_id 
              WHERE p.id = ?`,
             [decoded.userId]
         );

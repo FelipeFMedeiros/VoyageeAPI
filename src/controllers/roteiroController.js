@@ -15,7 +15,7 @@ export const createRoteiro = async (req, res) => {
 
         // Verificar se o passeio existe
         const [passeios] = await pool.query(
-            'SELECT id, destino_id, pessoa_id FROM PASSEIO WHERE id = ?',
+            'SELECT id, destino_id, pessoa_id FROM PASSEIOS WHERE id = ?',
             [passeioId],
         );
 
@@ -33,7 +33,7 @@ export const createRoteiro = async (req, res) => {
         try {
             // Criar roteiro
             const [result] = await connection.query(
-                `INSERT INTO ROTEIRO (
+                `INSERT INTO ROTEIROS (
                     passeio_id, data, hora_inicio, hora_fim, 
                     status, vagas_disponiveis, criador_id
                 ) VALUES (?, ?, ?, ?, 'agendado', ?, ?)`,
@@ -70,11 +70,11 @@ export const createRoteiro = async (req, res) => {
                     END as criador_eh_guia,
                     COALESCE(ar.media_avaliacoes, 0) as avaliacao_media,
                     COALESCE(ar.total_avaliacoes, 0) as total_avaliacoes
-                FROM ROTEIRO r
-                JOIN PASSEIO p ON r.passeio_id = p.id
-                JOIN DESTINO d ON p.destino_id = d.id
-                JOIN PESSOA pc ON r.criador_id = pc.id
-                LEFT JOIN GUIA g ON pc.id = g.pessoa_id
+                FROM ROTEIROS r
+                JOIN PASSEIOS p ON r.passeio_id = p.id
+                JOIN DESTINOS d ON p.destino_id = d.id
+                JOIN PESSOAS pc ON r.criador_id = pc.id
+                LEFT JOIN GUIAS g ON pc.id = g.pessoa_id
                 LEFT JOIN (
                     SELECT 
                         roteiro_id,
@@ -148,10 +148,10 @@ export const listRoteiros = async (req, res) => {
         // Query para contar total de registros
         const countQuery = `
             SELECT COUNT(*) as total 
-            FROM ROTEIRO r
-            JOIN PASSEIO p ON r.passeio_id = p.id
-            JOIN DESTINO d ON p.destino_id = d.id
-            JOIN PESSOA pc ON r.criador_id = pc.id
+            FROM ROTEIROS r
+            JOIN PASSEIOS p ON r.passeio_id = p.id
+            JOIN DESTINOS d ON p.destino_id = d.id
+            JOIN PESSOAS pc ON r.criador_id = pc.id
             WHERE ${conditions}
         `;
         
@@ -184,17 +184,17 @@ export const listRoteiros = async (req, res) => {
                 END as criador_eh_guia,
                 COALESCE(ar.media_avaliacoes, 0) as avaliacao_media,
                 COALESCE(ar.total_avaliacoes, 0) as total_avaliacoes
-            FROM ROTEIRO r
-            JOIN PASSEIO p ON r.passeio_id = p.id
-            JOIN DESTINO d ON p.destino_id = d.id
-            JOIN PESSOA pc ON r.criador_id = pc.id
-            LEFT JOIN GUIA g ON pc.id = g.pessoa_id
+            FROM ROTEIROS r
+            JOIN PASSEIOS p ON r.passeio_id = p.id
+            JOIN DESTINOS d ON p.destino_id = d.id
+            JOIN PESSOAS pc ON r.criador_id = pc.id
+            LEFT JOIN GUIAS g ON pc.id = g.pessoa_id
             LEFT JOIN (
                 SELECT 
                     roteiro_id,
                     AVG(nota) as media_avaliacoes,
                     COUNT(*) as total_avaliacoes
-                FROM AVALIACAO_ROTEIRO
+                FROM AVALIACOES_ROTEIRO
                 GROUP BY roteiro_id
             ) ar ON r.id = ar.roteiro_id
             WHERE ${conditions}
@@ -262,17 +262,17 @@ export const getRoteiroById = async (req, res) => {
                     END as criador_eh_guia,
                     COALESCE(ar.media_avaliacoes, 0) as avaliacao_media,
                     COALESCE(ar.total_avaliacoes, 0) as total_avaliacoes
-                FROM ROTEIRO r
-                JOIN PASSEIO p ON r.passeio_id = p.id
-                JOIN DESTINO d ON p.destino_id = d.id
-                JOIN PESSOA pc ON r.criador_id = pc.id
-                LEFT JOIN GUIA g ON pc.id = g.pessoa_id
+                FROM ROTEIROS r
+                JOIN PASSEIOS p ON r.passeio_id = p.id
+                JOIN DESTINOS d ON p.destino_id = d.id
+                JOIN PESSOAS pc ON r.criador_id = pc.id
+                LEFT JOIN GUIAS g ON pc.id = g.pessoa_id
                 LEFT JOIN (
                     SELECT 
                         roteiro_id,
                         AVG(nota) as media_avaliacoes,
                         COUNT(*) as total_avaliacoes
-                    FROM AVALIACAO_ROTEIRO
+                    FROM AVALIACOES_ROTEIRO
                     GROUP BY roteiro_id
                 ) ar ON r.id = ar.roteiro_id
                 WHERE r.id = ?
@@ -295,8 +295,8 @@ export const getRoteiroById = async (req, res) => {
                     ar.comentario,
                     ar.created_at,
                     p.nome as avaliador_nome
-                FROM AVALIACAO_ROTEIRO ar
-                JOIN PESSOA p ON ar.usuario_id = p.id
+                FROM AVALIACOES_ROTEIRO ar
+                JOIN PESSOAS p ON ar.usuario_id = p.id
                 WHERE ar.roteiro_id = ?
                 ORDER BY ar.created_at DESC
                 LIMIT 5
@@ -339,7 +339,7 @@ export const avaliarRoteiro = async (req, res) => {
 
         // Verificar se o roteiro existe e está concluído
         const [roteiros] = await pool.query(
-            'SELECT status FROM ROTEIRO WHERE id = ?',
+            'SELECT status FROM ROTEIROS WHERE id = ?',
             [roteiroId],
         );
 
@@ -359,7 +359,7 @@ export const avaliarRoteiro = async (req, res) => {
 
         // Verificar se o usuário já avaliou este roteiro
         const [avaliacaoExistente] = await pool.query(
-            'SELECT id FROM AVALIACAO_ROTEIRO WHERE roteiro_id = ? AND usuario_id = ?',
+            'SELECT id FROM AVALIACOES_ROTEIRO WHERE roteiro_id = ? AND usuario_id = ?',
             [roteiroId, userId],
         );
 
@@ -377,7 +377,7 @@ export const avaliarRoteiro = async (req, res) => {
         try {
             // Criar avaliação
             await connection.query(
-                'INSERT INTO AVALIACAO_ROTEIRO (roteiro_id, usuario_id, nota, comentario) VALUES (?, ?, ?, ?)',
+                'INSERT INTO AVALIACOES_ROTEIRO (roteiro_id, usuario_id, nota, comentario) VALUES (?, ?, ?, ?)',
                 [roteiroId, userId, nota, comentario],
             );
 
@@ -387,7 +387,7 @@ export const avaliarRoteiro = async (req, res) => {
                     SELECT 
                         AVG(nota) as media,
                         COUNT(*) as total
-                    FROM AVALIACAO_ROTEIRO
+                    FROM AVALIACOES_ROTEIRO
                     WHERE roteiro_id = ?
                 `,
                 [roteiroId],
@@ -427,7 +427,7 @@ export const updateRoteiro = async (req, res) => {
 
         // Verificar se o roteiro existe
         const [roteiros] = await pool.query(
-            'SELECT * FROM ROTEIRO WHERE id = ?',
+            'SELECT * FROM ROTEIROS WHERE id = ?',
             [id],
         );
 
@@ -496,7 +496,7 @@ export const updateRoteiro = async (req, res) => {
 
         try {
             await connection.query(
-                `UPDATE ROTEIRO SET ${updateFields.join(', ')} WHERE id = ?`,
+                `UPDATE ROTEIROS SET ${updateFields.join(', ')} WHERE id = ?`,
                 updateValues,
             );
 
@@ -523,11 +523,11 @@ export const updateRoteiro = async (req, res) => {
                         WHEN g.id IS NOT NULL THEN true 
                         ELSE false 
                     END as criador_eh_guia
-                FROM ROTEIRO r
-                JOIN PASSEIO p ON r.passeio_id = p.id
-                JOIN DESTINO d ON p.destino_id = d.id
-                JOIN PESSOA pc ON r.criador_id = pc.id
-                LEFT JOIN GUIA g ON pc.id = g.pessoa_id
+                FROM ROTEIROS r
+                JOIN PASSEIOS p ON r.passeio_id = p.id
+                JOIN DESTINOS d ON p.destino_id = d.id
+                JOIN PESSOAS pc ON r.criador_id = pc.id
+                LEFT JOIN GUIAS g ON pc.id = g.pessoa_id
                 WHERE r.id = ?
                 `,
                 [id],
@@ -563,7 +563,7 @@ export const deleteRoteiro = async (req, res) => {
 
         // Verificar se o roteiro existe
         const [roteiros] = await pool.query(
-            'SELECT * FROM ROTEIRO WHERE id = ?',
+            'SELECT * FROM ROTEIROS WHERE id = ?',
             [id],
         );
 
@@ -600,12 +600,12 @@ export const deleteRoteiro = async (req, res) => {
         try {
             // Excluir avaliações relacionadas
             await connection.query(
-                'DELETE FROM AVALIACAO_ROTEIRO WHERE roteiro_id = ?',
+                'DELETE FROM AVALIACOES_ROTEIRO WHERE roteiro_id = ?',
                 [id],
             );
 
             // Excluir roteiro
-            await connection.query('DELETE FROM ROTEIRO WHERE id = ?', [id]);
+            await connection.query('DELETE FROM ROTEIROS WHERE id = ?', [id]);
 
             await connection.commit();
 
@@ -665,17 +665,17 @@ export const getUserRoteiros = async (req, res) => {
                 END as criador_eh_guia,
                 COALESCE(ar.media_avaliacoes, 0) as avaliacao_media,
                 COALESCE(ar.total_avaliacoes, 0) as total_avaliacoes
-            FROM ROTEIRO r
-            JOIN PASSEIO p ON r.passeio_id = p.id
-            JOIN DESTINO d ON p.destino_id = d.id
-            JOIN PESSOA pc ON r.criador_id = pc.id
-            LEFT JOIN GUIA g ON pc.id = g.pessoa_id
+            FROM ROTEIROS r
+            JOIN PASSEIOS p ON r.passeio_id = p.id
+            JOIN DESTINOS d ON p.destino_id = d.id
+            JOIN PESSOAS pc ON r.criador_id = pc.id
+            LEFT JOIN GUIAS g ON pc.id = g.pessoa_id
             LEFT JOIN (
                 SELECT 
                     roteiro_id,
                     AVG(nota) as media_avaliacoes,
                     COUNT(*) as total_avaliacoes
-                FROM AVALIACAO_ROTEIRO
+                FROM AVALIACOES_ROTEIRO
                 GROUP BY roteiro_id
             ) ar ON r.id = ar.roteiro_id
             WHERE r.criador_id = ?
@@ -701,7 +701,7 @@ export const getUserRoteiros = async (req, res) => {
         // Buscar contagem total para paginação
         const [totalCount] = await pool.query(
             `SELECT COUNT(*) as total 
-             FROM ROTEIRO r 
+             FROM ROTEIROS r 
              WHERE r.criador_id = ?
              ${status ? 'AND r.status = ?' : ''}`,
             status ? [userId, status] : [userId]
@@ -719,8 +719,8 @@ export const getUserRoteiros = async (req, res) => {
                     ar.comentario,
                     ar.created_at,
                     p.nome as avaliador_nome
-                FROM AVALIACAO_ROTEIRO ar
-                JOIN PESSOA p ON ar.usuario_id = p.id
+                FROM AVALIACOES_ROTEIRO ar
+                JOIN PESSOAS p ON ar.usuario_id = p.id
                 WHERE ar.roteiro_id = ?
                 ORDER BY ar.created_at DESC
                 LIMIT 3

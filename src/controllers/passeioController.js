@@ -17,7 +17,7 @@ export const createPasseio = async (req, res) => {
 
         // Verificar se o destino existe
         const [destinos] = await pool.query(
-            'SELECT id FROM DESTINO WHERE id = ?',
+            'SELECT id FROM DESTINOS WHERE id = ?',
             [destino_id]
         );
 
@@ -30,7 +30,7 @@ export const createPasseio = async (req, res) => {
 
         // Criar passeio
         const [result] = await pool.query(
-            `INSERT INTO PASSEIO (
+            `INSERT INTO PASSEIOS (
                 nome, descricao, preco, destino_id, pessoa_id,
                 duracao_horas, nivel_dificuldade, inclui_refeicao,
                 inclui_transporte, capacidade_maxima, guia_id
@@ -49,9 +49,9 @@ export const createPasseio = async (req, res) => {
                 d.estado,
                 ps.nome as criador_nome,
                 ps.email as criador_email
-            FROM PASSEIO p
-            JOIN DESTINO d ON p.destino_id = d.id
-            JOIN PESSOA ps ON p.pessoa_id = ps.id
+            FROM PASSEIOS p
+            JOIN DESTINOS d ON p.destino_id = d.id
+            JOIN PESSOAS ps ON p.pessoa_id = ps.id
             WHERE p.id = ?
         `, [result.insertId]);
 
@@ -116,10 +116,10 @@ export const listPasseios = async (req, res) => {
         // Query para contar total de registros
         const countQuery = `
             SELECT COUNT(*) as total 
-            FROM PASSEIO p
-            JOIN DESTINO d ON p.destino_id = d.id
-            JOIN PESSOA pc ON p.pessoa_id = pc.id
-            LEFT JOIN GUIA g ON pc.id = g.pessoa_id
+            FROM PASSEIOS p
+            JOIN DESTINOS d ON p.destino_id = d.id
+            JOIN PESSOAS pc ON p.pessoa_id = pc.id
+            LEFT JOIN GUIAS g ON pc.id = g.pessoa_id
             WHERE ${conditions}
         `;
         
@@ -141,10 +141,10 @@ export const listPasseios = async (req, res) => {
                     WHEN g.id IS NOT NULL THEN true 
                     ELSE false 
                 END as criador_eh_guia
-            FROM PASSEIO p
-            JOIN DESTINO d ON p.destino_id = d.id
-            JOIN PESSOA pc ON p.pessoa_id = pc.id
-            LEFT JOIN GUIA g ON pc.id = g.pessoa_id
+            FROM PASSEIOS p
+            JOIN DESTINOS d ON p.destino_id = d.id
+            JOIN PESSOAS pc ON p.pessoa_id = pc.id
+            LEFT JOIN GUIAS g ON pc.id = g.pessoa_id
             WHERE ${conditions}
             ORDER BY p.created_at DESC
             LIMIT ? OFFSET ?
@@ -196,10 +196,10 @@ export const getPasseioById = async (req, res) => {
                     WHEN g.id IS NOT NULL THEN true 
                     ELSE false 
                 END as criador_eh_guia
-            FROM PASSEIO p
-            JOIN DESTINO d ON p.destino_id = d.id
-            JOIN PESSOA pc ON p.pessoa_id = pc.id
-            LEFT JOIN GUIA g ON pc.id = g.pessoa_id
+            FROM PASSEIOS p
+            JOIN DESTINOS d ON p.destino_id = d.id
+            JOIN PESSOAS pc ON p.pessoa_id = pc.id
+            LEFT JOIN GUIAS g ON pc.id = g.pessoa_id
             WHERE p.id = ?
         `, [id]);
 
@@ -233,7 +233,7 @@ export const updatePasseio = async (req, res) => {
 
         // Verificar se o passeio existe e pegar informações do criador
         const [passeios] = await pool.query(
-            'SELECT * FROM PASSEIO WHERE id = ?',
+            'SELECT * FROM PASSEIOS WHERE id = ?',
             [id]
         );
 
@@ -273,7 +273,7 @@ export const updatePasseio = async (req, res) => {
         updateValues.push(id);
 
         await pool.query(
-            `UPDATE PASSEIO SET ${updateFields.join(', ')} WHERE id = ?`,
+            `UPDATE PASSEIOS SET ${updateFields.join(', ')} WHERE id = ?`,
             updateValues
         );
 
@@ -286,9 +286,9 @@ export const updatePasseio = async (req, res) => {
                 d.estado,
                 ps.nome as criador_nome,
                 ps.email as criador_email
-            FROM PASSEIO p
-            JOIN DESTINO d ON p.destino_id = d.id
-            JOIN PESSOA ps ON p.pessoa_id = ps.id
+            FROM PASSEIOS p
+            JOIN DESTINOS d ON p.destino_id = d.id
+            JOIN PESSOAS ps ON p.pessoa_id = ps.id
             WHERE p.id = ?
         `, [id]);
 
@@ -315,7 +315,7 @@ export const deletePasseio = async (req, res) => {
 
         // Verificar se o passeio existe
         const [passeios] = await pool.query(
-            'SELECT * FROM PASSEIO WHERE id = ?',
+            'SELECT * FROM PASSEIOS WHERE id = ?',
             [id]
         );
 
@@ -336,7 +336,7 @@ export const deletePasseio = async (req, res) => {
 
         // Verificar se existem roteiros associados
         const [roteiros] = await pool.query(
-            'SELECT id FROM ROTEIRO WHERE passeio_id = ?',
+            'SELECT id FROM ROTEIROS WHERE passeio_id = ?',
             [id]
         );
 
@@ -347,7 +347,7 @@ export const deletePasseio = async (req, res) => {
             });
         }
 
-        await pool.query('DELETE FROM PASSEIO WHERE id = ?', [id]);
+        await pool.query('DELETE FROM PASSEIOS WHERE id = ?', [id]);
 
         res.json({
             success: true,
@@ -386,10 +386,10 @@ export const getUserPasseios = async (req, res) => {
                     WHEN g.id IS NOT NULL THEN true 
                     ELSE false 
                 END as criador_eh_guia
-            FROM PASSEIO p
-            JOIN DESTINO d ON p.destino_id = d.id
-            JOIN PESSOA ps ON p.pessoa_id = ps.id
-            LEFT JOIN GUIA g ON ps.id = g.pessoa_id
+            FROM PASSEIOS p
+            JOIN DESTINOS d ON p.destino_id = d.id
+            JOIN PESSOAS ps ON p.pessoa_id = ps.id
+            LEFT JOIN GUIAS g ON ps.id = g.pessoa_id
             WHERE p.pessoa_id = ?
         `;
 
@@ -413,7 +413,7 @@ export const getUserPasseios = async (req, res) => {
         // Buscar contagem total para paginação
         const [totalCount] = await pool.query(
             `SELECT COUNT(*) as total 
-             FROM PASSEIO p 
+             FROM PASSEIOS p 
              WHERE p.pessoa_id = ?
              ${nivel_dificuldade ? 'AND p.nivel_dificuldade = ?' : ''}`,
             nivel_dificuldade ? [userId, nivel_dificuldade] : [userId]
@@ -425,7 +425,7 @@ export const getUserPasseios = async (req, res) => {
         // Para cada passeio, buscar quantidade de roteiros associados
         for (let passeio of passeios) {
             const [roteiros] = await pool.query(
-                `SELECT COUNT(*) as total FROM ROTEIRO WHERE passeio_id = ?`,
+                `SELECT COUNT(*) as total FROM ROTEIROS WHERE passeio_id = ?`,
                 [passeio.id]
             );
             passeio.total_roteiros = roteiros[0].total;

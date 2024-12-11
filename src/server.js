@@ -15,16 +15,18 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 const corsOptions = {
-    origin: ['http://192.168.1.2:5173'],
+    origin: ['http://192.168.1.128:5173'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
+    credentials: true,
+    optionSuccessStatus: 200,
+    exposedHeaders: ['set-cookie'],
 };
 app.use(cors(corsOptions));
 app.use(express.json());
 
 // Determinar a URL base
-const baseUrl = `192.168.1.128:${port}`;
+const baseUrl = `http://192.168.1.128:${port}`;
 
 // Configuração do Swagger
 app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

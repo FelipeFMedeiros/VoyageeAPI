@@ -25,7 +25,7 @@ export const register = async (req, res) => {
 
         // Verificar se o usuário já existe
         const [existingUsers] = await pool.query(
-            'SELECT * FROM PESSOA WHERE email = ? OR cpf = ?',
+            'SELECT * FROM PESSOAS WHERE email = ? OR cpf = ?',
             [email, cpf],
         );
 
@@ -46,7 +46,7 @@ export const register = async (req, res) => {
 
             // Inserir pessoa
             const [personResult] = await connection.query(
-                'INSERT INTO PESSOA (nome, cpf, email, telefone, data_nascimento) VALUES (?, ?, ?, ?, ?)',
+                'INSERT INTO PESSOAS (nome, cpf, email, telefone, data_nascimento) VALUES (?, ?, ?, ?, ?)',
                 [nome, cpf, email, telefone, dataNascimento],
             );
 
@@ -64,14 +64,14 @@ export const register = async (req, res) => {
 
             // Inserir autenticação
             await connection.query(
-                'INSERT INTO AUTH (pessoa_id, password, role) VALUES (?, ?, ?)',
+                'INSERT INTO AUTHS (pessoa_id, password, role) VALUES (?, ?, ?)',
                 [personResult.insertId, hashedPassword, role],
             );
 
             // Se for guia, inserir endereço e registro de guia
             if (userType === 'guia') {
                 const [addressResult] = await connection.query(
-                    'INSERT INTO ENDERECO (cep, pais, estado, cidade, bairro, rua, numero, complemento) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT INTO ENDERECOS (cep, pais, estado, cidade, bairro, rua, numero, complemento) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         cep,
                         pais,
@@ -85,7 +85,7 @@ export const register = async (req, res) => {
                 );
 
                 await connection.query(
-                    'INSERT INTO GUIA (pessoa_id, endereco_id, biografia, status_verificacao) VALUES (?, ?, ?, ?)',
+                    'INSERT INTO GUIAS (pessoa_id, endereco_id, biografia, status_verificacao) VALUES (?, ?, ?, ?)',
                     [
                         personResult.insertId,
                         addressResult.insertId,
@@ -137,9 +137,9 @@ export const login = async (req, res) => {
                     WHEN g.id IS NOT NULL THEN 'guia'
                     ELSE 'viajante'
                 END as tipo
-            FROM PESSOA p 
-            JOIN AUTH a ON p.id = a.pessoa_id 
-            LEFT JOIN GUIA g ON p.id = g.pessoa_id
+            FROM PESSOAS p 
+            JOIN AUTHS a ON p.id = a.pessoa_id 
+            LEFT JOIN GUIAS g ON p.id = g.pessoa_id
             WHERE p.email = ?`,
             [email],
         );
@@ -172,7 +172,7 @@ export const login = async (req, res) => {
 
         // Atualizar último login
         await pool.query(
-            'UPDATE AUTH SET last_login = CURRENT_TIMESTAMP WHERE pessoa_id = ?',
+            'UPDATE AUTHS SET last_login = CURRENT_TIMESTAMP WHERE pessoa_id = ?',
             [user.id],
         );
 
@@ -233,9 +233,9 @@ export const listUsers = async (req, res) => {
                 a.role,
                 a.is_active,
                 a.last_login
-            FROM PESSOA p
-            JOIN AUTH a ON p.id = a.pessoa_id
-            LEFT JOIN GUIA g ON p.id = g.pessoa_id
+            FROM PESSOAS p
+            JOIN AUTHS a ON p.id = a.pessoa_id
+            LEFT JOIN GUIAS g ON p.id = g.pessoa_id
             ORDER BY p.nome
         `);
 
@@ -279,9 +279,9 @@ export const verifyToken = async (req, res) => {
                     WHEN g.id IS NOT NULL THEN 'guia'
                     ELSE 'viajante'
                 END as tipo
-            FROM PESSOA p
-            JOIN AUTH a ON p.id = a.pessoa_id
-            LEFT JOIN GUIA g ON p.id = g.pessoa_id
+            FROM PESSOAS p
+            JOIN AUTHS a ON p.id = a.pessoa_id
+            LEFT JOIN GUIAS g ON p.id = g.pessoa_id
             WHERE p.id = ?
         `,
             [user.id],
@@ -346,10 +346,10 @@ export const getUserById = async (req, res) => {
                 e.rua,
                 e.numero as endereco_numero,
                 e.complemento
-            FROM PESSOA p
-            JOIN AUTH a ON p.id = a.pessoa_id
-            LEFT JOIN GUIA g ON p.id = g.pessoa_id
-            LEFT JOIN ENDERECO e ON g.endereco_id = e.id
+            FROM PESSOAS p
+            JOIN AUTHS a ON p.id = a.pessoa_id
+            LEFT JOIN GUIAS g ON p.id = g.pessoa_id
+            LEFT JOIN ENDERECOS e ON g.endereco_id = e.id
             WHERE p.id = ?
         `, [userId]);
 
@@ -392,7 +392,7 @@ export const updateUser = async (req, res) => {
 
         // Verificar se o usuário existe
         const [userCheck] = await pool.query(
-            'SELECT p.id, p.email FROM PESSOA p WHERE p.id = ?',
+            'SELECT p.id, p.email FROM PESSOAS p WHERE p.id = ?',
             [requestingUser.id],
         );
 
@@ -442,7 +442,7 @@ export const updateUser = async (req, res) => {
                 if (updateFields.length > 0) {
                     updateValues.push(requestingUser.id);
                     await connection.query(
-                        `UPDATE PESSOA SET ${updateFields.join(
+                        `UPDATE PESSOAS SET ${updateFields.join(
                             ', ',
                         )} WHERE id = ?`,
                         updateValues,
@@ -452,7 +452,7 @@ export const updateUser = async (req, res) => {
 
             // Verificar e atualizar informações de guia
             const [guiaCheck] = await connection.query(
-                'SELECT id, endereco_id FROM GUIA WHERE pessoa_id = ?',
+                'SELECT id, endereco_id FROM GUIAS WHERE pessoa_id = ?',
                 [requestingUser.id],
             );
 
@@ -461,7 +461,7 @@ export const updateUser = async (req, res) => {
                 // Atualizar biografia se fornecida
                 if (updates.biografia !== undefined) {
                     await connection.query(
-                        'UPDATE GUIA SET biografia = ? WHERE pessoa_id = ?',
+                        'UPDATE GUIAS SET biografia = ? WHERE pessoa_id = ?',
                         [updates.biografia, requestingUser.id],
                     );
                 }
@@ -495,7 +495,7 @@ export const updateUser = async (req, res) => {
                     if (enderecoFields.length > 0) {
                         enderecoValues.push(enderecoId);
                         await connection.query(
-                            `UPDATE ENDERECO SET ${enderecoFields.join(
+                            `UPDATE ENDERECOS SET ${enderecoFields.join(
                                 ', ',
                             )} WHERE id = ?`,
                             enderecoValues,
@@ -525,10 +525,10 @@ export const updateUser = async (req, res) => {
         e.rua,
         e.numero as endereco_numero,
         e.complemento
-    FROM PESSOA p
-    JOIN AUTH a ON p.id = a.pessoa_id
-    LEFT JOIN GUIA g ON p.id = g.pessoa_id
-    LEFT JOIN ENDERECO e ON g.endereco_id = e.id
+    FROM PESSOAS p
+    JOIN AUTHS a ON p.id = a.pessoa_id
+    LEFT JOIN GUIAS g ON p.id = g.pessoa_id
+    LEFT JOIN ENDERECOS e ON g.endereco_id = e.id
     WHERE p.id = ?
 `,
                 [requestingUser.id],
